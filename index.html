@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>宾客座位规划 | Demo Online</title>
+<style>
+  :root{
+    --bg:#0f1220;
+    --panel:#171b2c;
+    --accent:#6aa7ff;
+    --accent-2:#9f7bff;
+    --text:#e7ecff;
+    --muted:#9aa4c7;
+    --danger:#ff6b6b;
+    --ok:#20c997;
+    --card:#1c2140;
+    --chip:#242a52;
+    --border:rgba(255,255,255,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background: radial-gradient(1200px 600px at 20% -10%, #1a2040 0, #0f1220 70%), var(--bg);
+    color:var(--text);
+    font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    display:flex; gap:12px; padding:12px; overflow:hidden;
+  }
+  .sidebar{ width:320px; min-width:260px; max-width:380px; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  h1{font-size:16px; margin:0 0 8px 0; letter-spacing:.5px}
+  .controls, .stats{display:grid; gap:8px}
+  .controls input[type="text"], .controls input[type="number"], textarea, input[type="file"]{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1330; color:var(--text);
+    outline:none;
+  }
+  .row{display:flex; gap:8px; flex-wrap:wrap}
+  .btn{ appearance:none; border:none; cursor:pointer; padding:10px 12px; border-radius:10px; color:white; background:linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 6px 20px rgba(106,167,255,.25); transition:.15s transform ease, .15s filter ease, .15s opacity ease; white-space:nowrap; }
+  .btn:hover{filter:brightness(1.05)} .btn:active{transform:translateY(1px)}
+  .btn.ghost{ background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none; }
+  .btn.warn{ background:linear-gradient(135deg, #ff8a8a, #ff6b6b); box-shadow: 0 6px 20px rgba(255,107,107,.25); }
+  .guest-list{ flex:1; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:4px; border:1px dashed var(--border); border-radius:12px; background:rgba(0,0,0,.12); }
+  .guest{ user-select:none; display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; background:var(--chip); border:1px solid var(--border); }
+  .guest.dragging{opacity:.6} .guest .tag{ font-size:12px; color:var(--muted); margin-left:auto; }
+  .search{ padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0f1330; color:var(--text); }
+  .main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; }
+  .toolbar{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .stats{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-left:auto }
+  .pill{ padding:8px 10px; border-radius:999px; background:var(--chip); border:1px solid var(--border); color:var(--text); }
+  .pill.ok{background:rgba(32,201,151,.12); color:#a7f3d0; border-color:rgba(32,201,151,.25)} .pill.warn{background:rgba(255,107,107,.12); color:#fecaca; border-color:rgba(255,107,107,.25)}
+  .canvas{ flex:1; overflow:auto; padding:12px; display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap:12px; }
+  .table-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:8px; position:relative; }
+  .table-header{ display:flex; align-items:center; gap:10px; }
+  .badge{ font-weight:600; padding:6px 10px; border-radius:999px; background:linear-gradient(135deg, #27305d, #1f2550); border:1px solid var(--border); }
+  .capacity{ margin-left:auto; font-size:12px; color:var(--muted); }
+  .dropzone{ min-height:54px; border:1px dashed var(--border); border-radius:10px; padding:6px; display:flex; flex-wrap:wrap; gap:6px; background:rgba(0,0,0,.06) }
+  .dropzone.highlight{outline:2px dashed var(--accent); outline-offset:2px}
+  .seat{ display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:10px; background:#222861; border:1px solid var(--border) }
+  .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
+  .spacer{flex:1} .link{color:var(--accent); cursor:pointer; text-decoration:underline; font-size:12px}
+  @media (max-width: 920px){
+    body{flex-direction:column; overflow:auto; padding:10px}
+    .sidebar{width:auto; max-width:none}
+  }
+  @media print{
+    body{background:white; color:black; padding:0}
+    .sidebar{display:none} .toolbar{display:none}
+    .canvas{grid-template-columns: repeat(2, 1fr); gap:8px; padding:0}
+    .table-card{page-break-inside:avoid; border:1px solid #ddd; background:white}
+    .seat{background:#f6f7ff; border-color:#e6e8ff}
+  }
+</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div>
+      <h1>未入座宾客</h1>
+      <input id="search" class="search" type="text" placeholder="搜索姓名…" />
+    </div>
+
+    <div class="controls">
+      <textarea id="bulkNames" rows="5" placeholder="批量粘贴姓名：每行一个；可带备注，如“张三（家属）”"></textarea>
+      <div class="row">
+        <button class="btn" id="addGuestsBtn">添加到名单</button>
+        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">清空未入座</button>
+      </div>
+
+      <div class="row">
+        <input id="tableName" type="text" placeholder="桌名（如：1号桌）">
+        <input id="tableCap" type="number" min="1" value="10" title="座位数">
+        <button class="btn" id="addTableBtn">新增桌</button>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">自动排座</button>
+        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">打散未入座</button>
+      </div>
+
+      <div class="row">
+        <button class="btn ghost" id="exportBtn">导出JSON</button>
+        <input id="importFile" type="file" accept=".json">
+        <button class="btn ghost" id="printBtn">打印清单</button>
+      </div>
+
+      <div class="row">
+        <button class="btn warn" id="resetAllBtn">重置全部</button>
+      </div>
+    </div>
+
+    <div id="guestList" class="guest-list" aria-label="未入座列表"></div>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <div class="pill">在线 Demo：可直接使用手机体验；支持拖拽（长按）、自动排座、统计、导入导出。</div>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div id="canvas" class="canvas" aria-label="桌面画布"></div>
+  </main>
+
+<script>
+(() => {
+  const state = { guests: [], tables: [] };
+  const el = {
+    search: qs('#search'), bulkNames: qs('#bulkNames'),
+    addGuestsBtn: qs('#addGuestsBtn'), clearGuestsBtn: qs('#clearGuestsBtn'),
+    tableName: qs('#tableName'), tableCap: qs('#tableCap'), addTableBtn: qs('#addTableBtn'),
+    guestList: qs('#guestList'), canvas: qs('#canvas'), stats: qs('#stats'),
+    autoSeatBtn: qs('#autoSeatBtn'), shuffleBtn: qs('#shuffleBtn'),
+    exportBtn: qs('#exportBtn'), importFile: qs('#importFile'), printBtn: qs('#printBtn'),
+    resetAllBtn: qs('#resetAllBtn'),
+  };
+  const STORAGE_KEY = 'seating_planner_online_demo';
+
+  function qs(s, root=document){ return root.querySelector(s); }
+  function qsa(s, root=document){ return Array.from(root.querySelectorAll(s)); }
+  const uid = () => Math.random().toString(36).slice(2,9);
+
+  function persist(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  function restore(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    try{ const s = JSON.parse(raw); if(s && s.guests && s.tables){ state.guests=s.guests; state.tables=s.tables; } }catch{}
+  }
+
+  function render(){
+    const seatedIds = new Set(state.tables.flatMap(t=>t.guests));
+    const filter = (el.search.value||'').trim();
+    const pending = state.guests.filter(g=>!seatedIds.has(g.id)).filter(g=>!filter || g.name.includes(filter));
+    el.guestList.innerHTML = '';
+    if(pending.length===0){
+      const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.padding='8px'; empty.textContent='（暂无未入座）'; el.guestList.appendChild(empty);
+    }else{
+      for(const g of pending){
+        const item = document.createElement('div');
+        item.className='guest'; item.draggable=true; item.dataset.guestId=g.id;
+        item.innerHTML = `<span>🧑</span><span>${escapeHtml(g.name)}</span><span class="tag">拖拽入座</span>`;
+        attachGuestDrag(item); el.guestList.appendChild(item);
+      }
+    }
+    el.canvas.innerHTML = '';
+    for(const t of state.tables){
+      const card = document.createElement('section'); card.className='table-card'; card.dataset.tableId=t.id;
+      card.innerHTML = `
+        <div class="table-header">
+          <span class="badge">🪑 ${escapeHtml(t.name)}</span>
+          <span class="capacity">容量 ${t.capacity} | 已入座 ${t.guests.length}</span>
+        </div>
+        <div class="dropzone" aria-label="可放置区域"></div>
+        <div class="table-footer">
+          <a class="link rename">重命名</a> ·
+          <a class="link setcap">设置容量</a> ·
+          <a class="link clear">清空</a>
+          <div class="spacer"></div>
+          <a class="link remove">删除桌</a>
+        </div>`;
+      const dz = qs('.dropzone', card);
+      attachDropzone(dz, t.id);
+      for(const gid of t.guests){ const g = state.guests.find(x=>x.id===gid); if(g){ dz.appendChild(makeSeatChip(g, t.id)); } }
+      qs('.rename', card).onclick = () => { const name = prompt('桌名：', t.name); if(name && name.trim()){ t.name=name.trim(); persist(); render(); } };
+      qs('.setcap', card).onclick = () => { const cap = prompt('容量（座位数）：', t.capacity); const n = Number(cap); if(Number.isInteger(n) && n>0){ t.capacity=n; persist(); render(); } else { alert('请输入大于 0 的整数容量'); } };
+      qs('.clear', card).onclick = () => { if(confirm(`清空 ${t.name} 的入座？`)){ t.guests=[]; persist(); render(); } };
+      qs('.remove', card).onclick = () => { if(confirm(`删除桌子“${t.name}”？`)){ state.tables = state.tables.filter(x=>x.id!==t.id); persist(); render(); } };
+      el.canvas.appendChild(card);
+    }
+    const total = state.guests.length, seated = state.tables.reduce((a,t)=>a+t.guests.length,0);
+    const unseated = total - seated, tableCount = state.tables.length;
+    const fullTables = state.tables.filter(t=>t.guests.length>=t.capacity).length;
+    el.stats.innerHTML = `
+      <div class="pill">总人数：${total}</div>
+      <div class="pill ${unseated===0? 'ok':''}">已入座：${seated}</div>
+      <div class="pill ${unseated>0? 'warn':''}">未入座：${unseated}</div>
+      <div class="pill">桌数：${tableCount}</div>
+      <div class="pill ${fullTables? 'warn':''}">满员桌：${fullTables}</div>`;
+  }
+
+  function makeSeatChip(guest, tableId){
+    const chip = document.createElement('div');
+    chip.className='seat'; chip.draggable=true; chip.dataset.guestId=guest.id; chip.dataset.tableId=tableId;
+    chip.innerHTML = `<span>👤</span><span>${escapeHtml(guest.name)}</span><a class="link" style="margin-left:6px">移出</a>`;
+    attachGuestDrag(chip);
+    qs('.link', chip).onclick = () => { const t = state.tables.find(t=>t.id===tableId); if(!t) return; t.guests = t.guests.filter(id=>id!==guest.id); persist(); render(); };
+    return chip;
+  }
+
+  let draggingId=null, draggingFromTable=null;
+  function attachGuestDrag(node){
+    node.addEventListener('dragstart', e=>{
+      draggingId = node.dataset.guestId; draggingFromTable = node.dataset.tableId || null;
+      node.classList.add('dragging'); e.dataTransfer.setData('text/plain', draggingId); e.dataTransfer.effectAllowed='move';
+    });
+    node.addEventListener('dragend', ()=>{
+      draggingId=null; draggingFromTable=null; node.classList.remove('dragging'); qsa('.dropzone').forEach(z=>z.classList.remove('highlight'));
+    });
+    // 兼容移动端长按拖拽（简单实现：长按后添加到第一个高亮桌）
+    node.addEventListener('touchstart', e=>{ node.classList.add('dragging'); });
+    node.addEventListener('touchend', e=>{ node.classList.remove('dragging'); });
+  }
+
+  function attachDropzone(zone, tableId){
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; zone.classList.add('highlight'); });
+    zone.addEventListener('dragleave', ()=>{ zone.classList.remove('highlight'); });
+    zone.addEventListener('drop', e=>{
+      e.preventDefault(); zone.classList.remove('highlight');
+      const gid = draggingId || e.dataTransfer.getData('text/plain'); if(!gid) return;
+      if(draggingFromTable){ const from = state.tables.find(t=>t.id===draggingFromTable); if(from){ from.guests = from.guests.filter(id=>id!==gid); } }
+      const t = state.tables.find(t=>t.id===tableId); if(!t) return; if(!t.guests.includes(gid)){ t.guests.push(gid); } persist(); render();
+    });
+    // 简单点击添加（移动端友好）：点击空白区把未入座第一个加入该桌
+    zone.addEventListener('click', ()=>{
+      const seated = new Set(state.tables.flatMap(t=>t.guests));
+      const first = state.guests.find(g=>!seated.has(g.id));
+      if(!first) return;
+      const t = state.tables.find(t=>t.id===tableId);
+      if(t && t.guests.length < t.capacity){ t.guests.push(first.id); persist(); render(); }
+    });
+  }
+
+  el.addGuestsBtn.onclick = () => {
+    const lines = el.bulkNames.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
+    if(lines.length===0){ alert('请粘贴至少一个姓名'); return; }
+    for(const name of lines){ state.guests.push({id:uid(), name}); }
+    el.bulkNames.value=''; persist(); render();
+  };
+  el.clearGuestsBtn.onclick = () => {
+    if(!confirm('仅清空“未入座”列表？（已在桌上的不受影响）')) return;
+    const seated = new Set(state.tables.flatMap(t=>t.guests));
+    state.guests = state.guests.filter(g=>seated.has(g.id)); persist(); render();
+  };
+  el.addTableBtn.onclick = () => {
+    const name = (el.tableName.value.trim() || `${state.tables.length+1}号桌`);
+    const cap = Number(el.tableCap.value);
+    if(!Number.isInteger(cap) || cap<=0){ alert('容量需为大于 0 的整数'); return; }
+    state.tables.push({id:uid(), name, capacity:cap, guests:[]});
+    el.tableName.value=''; persist(); render();
+  };
+  el.autoSeatBtn.onclick = () => {
+    const seated = new Set(state.tables.flatMap(t=>t.guests));
+    const queue = state.guests.filter(g=>!seated.has(g.id));
+    if(queue.length===0){ alert('没有未入座的宾客'); return; }
+    let idx = 0;
+    for(const t of state.tables){
+      while(t.guests.length < t.capacity && idx < queue.length){ t.guests.push(queue[idx].id); idx++; }
+    }
+    persist(); render();
+  };
+  el.shuffleBtn.onclick = () => {
+    const seated = new Set(state.tables.flatMap(t=>t.guests));
+    const pending = state.guests.filter(g=>!seated.has(g.id));
+    for(let i=pending.length-1; i>0; i--){ const j = Math.floor(Math.random()*(i+1)); [pending[i], pending[j]] = [pending[j], pending[i]]; }
+    const remains = state.guests.filter(g=>seated.has(g.id)); state.guests = remains.concat(pending);
+    persist(); render();
+  };
+  el.exportBtn.onclick = () => {
+    const data = JSON.stringify(state, null, 2);
+    const blob = new Blob([data], {type:'application/json;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `seating-plan-${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  el.importFile.onchange = (ev) => {
+    const file = ev.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const s = JSON.parse(reader.result);
+        if(!s || !Array.isArray(s.guests) || !Array.isArray(s.tables)) throw new Error('格式不正确');
+        state.guests = s.guests; state.tables = s.tables; persist(); render();
+      }catch(e){ alert('导入失败：' + e.message); }
+      ev.target.value='';
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+  el.printBtn.onclick = () => window.print();
+  el.resetAllBtn.onclick = () => {
+    if(!confirm('重置全部数据？（清空所有桌子与名单）')) return;
+    state.guests = []; state.tables = []; seed(); persist(); render();
+  };
+  el.search.oninput = () => render();
+
+  function escapeHtml(s){ return s.replace(/[&<>\"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[c])); }
+
+  function seed(){
+    if(state.guests.length===0 && state.tables.length===0){
+      state.guests = ['张三','李四','王五','赵六','小红','小明','小芳','陈伟','刘强','周杰','唐婉','林娜','何雷','马超','许宁','张雷','宋楠','黄蓉','郭靖','欧阳','乔峰','段誉','虚竹','慕容','令狐冲','岳灵珊'].map(n=>({id:uid(), name:n}));
+      state.tables = [
+        {id:uid(), name:'1号桌', capacity:8, guests:[]},
+        {id:uid(), name:'2号桌', capacity:8, guests:[]},
+        {id:uid(), name:'3号桌', capacity:8, guests:[]},
+        {id:uid(), name:'亲友桌A', capacity:10, guests:[]},
+      ];
+    }
+  }
+
+  restore(); seed(); persist(); render();
+})();
+</script>
+</body>
+</html>
