@@ -299,9 +299,7 @@
         if(!t.guests.includes(gid) && t.guests.length < t.capacity){ t.guests.push(gid); }
         scheduleSave(); render();
       });
-      wrap.addEventListener('click', ()=>{
-        const seatedSet = new Set(state.tables.flatMap(tt=>tt.guests));
-        const first = state.guests.find(g=>!seatedSet.has(g.id));
+              const first = state.guests.find(g=>!seatedSet.has(g.id));
         if(first && t.guests.length < t.capacity){ t.guests.push(first.id); scheduleSave(); render(); }
       });
 
