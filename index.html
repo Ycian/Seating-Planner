@@ -64,7 +64,7 @@
   .round{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:50%; background:#2a2f68; border:2px solid var(--border); box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); display:flex; align-items:center; justify-content:center; color:#cfe3ff; font-weight:600; }
   .chair{ position:absolute; width:64px; height:28px; border-radius:14px; background:#222861; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; padding:0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .chair.empty{ opacity:.45; font-size:12px; color:var(--muted); }
-  .chair .remove{ margin-left:6px; text-decoration:underline; cursor:pointer; color:#f8b4b4; font-size:12px; }
+  .chair .kick{ margin-left:6px; text-decoration:underline; cursor:pointer; color:#f8b4b4; font-size:12px; }
   .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
   .spacer{flex:1} .link{color:var(--accent); cursor:pointer; text-decoration:underline; font-size:12px}
   .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
@@ -144,12 +144,10 @@
 
 <script>
 (() => {
-  // === 1) 你的 Supabase 项目信息（已留空占位，如需成品请替换为你的URL和Key） ===
   const SUPABASE_URL = "https://dlgecgypzeucpfrcxdzq.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZ2VjZ3lwemV1Y3BmcmN4ZHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwODk4ODUsImV4cCI6MjA3MDY2NTg4NX0.xz0twrBoz9xh3X7LI2uati8EKlTEq3NpKhaorzuiyCE";
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // URL hash: #plan=<uuid>
   const hashParams = new URLSearchParams((location.hash||"").slice(1));
   let planId = hashParams.get("plan");
 
@@ -174,7 +172,6 @@
   let writing = false;
   let writeTimer = null;
 
-  // === 网格列数（每排桌数） ===
   function setCols(n){
     n = Math.max(1, Math.min(8, Number(n)||3));
     document.documentElement.style.setProperty('--cols', n);
@@ -189,11 +186,7 @@
   async function ensurePlan() {
     if (planId) return planId;
     const seeded = seed();
-    const { data, error } = await supabase
-      .from('plans')
-      .insert({ title: 'Seating Plan', state: seeded })
-      .select('id')
-      .single();
+    const { data, error } = await supabase.from('plans').insert({ title: 'Seating Plan', state: seeded }).select('id').single();
     if (error) { alert('创建计划失败：' + error.message); throw error; }
     planId = data.id;
     const p = new URL(location.href); p.hash = 'plan=' + planId; history.replaceState(null, '', p);
@@ -232,7 +225,6 @@
     const filter = (el.search.value||'').trim();
     const pending = state.guests.filter(g=>!seatedIds.has(g.id)).filter(g=>!filter || g.name.includes(filter));
 
-    // 未入座列表
     el.guestList.innerHTML = '';
     if(pending.length===0){
       const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.padding='8px'; empty.textContent='（暂无未入座）'; el.guestList.appendChild(empty);
@@ -245,7 +237,6 @@
       }
     }
 
-    // 桌面
     el.canvas.innerHTML = '';
     for(const t of state.tables){
       const card = document.createElement('section'); card.className='table-card'; card.dataset.tableId=t.id;
@@ -257,7 +248,6 @@
         <div class="table-visual">
           <div class="round-wrap">
             <div class="round">${escapeHtml(t.name)}</div>
-            <!-- 椅子将由 JS 布局生成 -->
           </div>
         </div>
         <div class="table-footer">
@@ -265,14 +255,13 @@
           <a class="link setcap">设置容量</a> ·
           <a class="link clear">清空</a>
           <div class="spacer"></div>
-          <a class="link remove">删除桌</a>
+          <a class="link remove-table">删除桌</a>
         </div>`;
 
-      // 椅子布局（环形）
       const wrap = qs('.round-wrap', card);
       const seated = t.guests.map(id => state.guests.find(g=>g.id===id)).filter(Boolean);
       const seats = t.capacity;
-      const R = 95; // 半径
+      const R = 95;
       for(let i=0;i<seats;i++){
         const angle = (i / seats) * 2 * Math.PI - Math.PI/2;
         const x = Math.cos(angle) * R + 110;
@@ -283,12 +272,13 @@
         chair.style.top  = (y - 14) + 'px';
         const g = seated[i];
         if(g){
-          chair.innerHTML = `<span>${escapeHtml(shortName(g.name))}</span><span class="remove">×</span>`;
-          qs('.remove', chair).onclick = () => {
+          chair.innerHTML = `<span>${escapeHtml(shortName(g.name))}</span><span class="kick">×</span>`;
+          const kick = chair.querySelector('.kick');
+          kick.onclick = (ev) => {
+            ev.stopPropagation();
             t.guests = t.guests.filter(id=>id!==g.id);
             scheduleSave(); render();
           };
-          // 允许把椅子再拖到其它桌
           chair.draggable = true;
           chair.dataset.guestId = g.id;
           chair.dataset.tableId = t.id;
@@ -300,7 +290,6 @@
         wrap.appendChild(chair);
       }
 
-      // 整张桌作为 dropzone（移动端点击空白快速加入）
       wrap.addEventListener('dragover', e=>{ e.preventDefault(); });
       wrap.addEventListener('drop', e=>{
         e.preventDefault();
@@ -319,11 +308,15 @@
       qs('.rename', card).onclick = () => { const name = prompt('桌名：', t.name); if(name && name.trim()){ t.name=name.trim(); scheduleSave(); render(); } };
       qs('.setcap', card).onclick = () => { const cap = prompt('容量（座位数）：', t.capacity); const n = Number(cap); if(Number.isInteger(n) && n>0){ t.capacity=n; scheduleSave(); render(); } else { alert('请输入大于 0 的整数容量'); } };
       qs('.clear', card).onclick = () => { if(confirm(`清空 ${t.name} 的入座？`)){ t.guests=[]; scheduleSave(); render(); } };
-      qs('.remove', card).onclick = () => { if(confirm(`删除桌子“${t.name}”？`)){ state.tables = state.tables.filter(x=>x.id!==t.id); scheduleSave(); render(); } };
+      // FIX: 只选中 table-footer 里的删除按钮，避免和椅子的“×”混淆
+      qs('.table-footer .remove-table', card).onclick = () => {
+        if(confirm(`删除桌子“${t.name}”？`)){
+          state.tables = state.tables.filter(x=>x.id!==t.id); scheduleSave(); render();
+        }
+      };
       el.canvas.appendChild(card);
     }
 
-    // 统计
     const total = state.guests.length, seatedCount = state.tables.reduce((a,t)=>a+t.guests.length,0);
     const unseated = total - seatedCount, tableCount = state.tables.length;
     const fullTables = state.tables.filter(t=>t.guests.length>=t.capacity).length;
@@ -336,12 +329,10 @@
   }
 
   function shortName(s){
-    // 显示前2~4个可见字符，去掉括号备注
     s = s.replace(/[（(].*?[)）]/g, '').trim();
     return s.length<=4 ? s : s.slice(0,4);
   }
 
-  // 拖拽
   let draggingId=null, draggingFromTable=null;
   function attachGuestDrag(node){
     node.addEventListener('dragstart', e=>{
@@ -355,7 +346,6 @@
     node.addEventListener('touchend',   ()=>{ node.classList.remove('dragging'); });
   }
 
-  // 按钮事件
   el.addGuestsBtn.onclick = () => {
     const lines = el.bulkNames.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
     if(lines.length===0){ alert('请粘贴至少一个姓名'); return; }
