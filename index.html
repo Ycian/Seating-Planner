@@ -3,11 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Seating Planner (Realtime via Supabase)</title>
-<meta name="description" content="Realtime seating planner with Supabase on a static site (GitHub Pages ready).">
+<title>宾客座位规划（实时协作 | 中文版）</title>
+<meta name="description" content="支持手机与电脑，实时多人协作的婚宴/酒席/年会座位规划工具。">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root{ --bg:#0f1220; --panel:#171b2c; --accent:#6aa7ff; --accent-2:#9f7bff; --text:#e7ecff; --muted:#9aa4c7; --danger:#ff6b6b; --ok:#20c997; --card:#1c2140; --chip:#242a52; --border:rgba(255,255,255,.08); }
+  :root{
+    --bg:#0f1220; --panel:#171b2c; --accent:#6aa7ff; --accent-2:#9f7bff;
+    --text:#e7ecff; --muted:#9aa4c7; --danger:#ff6b6b; --ok:#20c997;
+    --card:#1c2140; --chip:#242a52; --border:rgba(255,255,255,.08);
+    --cols: 3;
+  }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
@@ -20,7 +25,7 @@
   .sidebar{ width:320px; min-width:260px; max-width:380px; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; }
   h1{font-size:16px; margin:0 0 8px 0; letter-spacing:.5px}
   .controls, .stats{display:grid; gap:8px}
-  .controls input[type="text"], .controls input[type="number"], textarea, input[type="file"]{
+  .controls input[type="text"], .controls input[type="number"], textarea, input[type="file"], select{
     width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1330; color:var(--text);
     outline:none;
   }
@@ -45,19 +50,29 @@
   .pill{ padding:8px 10px; border-radius:999px; background:var(--chip); border:1px solid var(--border); color:var(--text); }
   .pill.ok{background:rgba(32,201,151,.12); color:#a7f3d0; border-color:rgba(32,201,151,.25)}
   .pill.warn{background:rgba(255,107,107,.12); color:#fecaca; border-color:rgba(255,107,107,.25)}
-  .canvas{ flex:1; overflow:auto; padding:12px; display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap:12px; }
-  .table-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:8px; position:relative; }
+  .canvas{ flex:1; overflow:auto; padding:12px;
+    display:grid; grid-template-columns: repeat(var(--cols), minmax(260px,1fr)); gap:12px; transition:.15s ease;
+  }
+  .table-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px; position:relative; }
   .table-header{ display:flex; align-items:center; gap:10px; }
   .badge{ font-weight:600; padding:6px 10px; border-radius:999px; background:linear-gradient(135deg, #27305d, #1f2550); border:1px solid var(--border); }
   .capacity{ margin-left:auto; font-size:12px; color:var(--muted); }
   .dropzone{ min-height:54px; border:1px dashed var(--border); border-radius:10px; padding:6px; display:flex; flex-wrap:wrap; gap:6px; background:rgba(0,0,0,.06) }
   .dropzone.highlight{outline:2px dashed var(--accent); outline-offset:2px}
-  .seat{ display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:10px; background:#222861; border:1px solid var(--border) }
+  .table-visual{ display:flex; align-items:center; justify-content:center; padding:10px 0 6px }
+  .round-wrap{ position:relative; width:220px; height:220px; margin:auto; }
+  .round{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:50%; background:#2a2f68; border:2px solid var(--border); box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); display:flex; align-items:center; justify-content:center; color:#cfe3ff; font-weight:600; }
+  .chair{ position:absolute; width:64px; height:28px; border-radius:14px; background:#222861; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; padding:0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chair.empty{ opacity:.45; font-size:12px; color:var(--muted); }
+  .chair .remove{ margin-left:6px; text-decoration:underline; cursor:pointer; color:#f8b4b4; font-size:12px; }
   .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
   .spacer{flex:1} .link{color:var(--accent); cursor:pointer; text-decoration:underline; font-size:12px}
+  .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .grid-controls input[type="range"]{ width:160px }
   @media (max-width: 920px){
     body{flex-direction:column; overflow:auto; padding:10px}
     .sidebar{width:auto; max-width:none}
+    .canvas{ grid-template-columns: repeat(1, minmax(260px,1fr)); }
   }
   @media print{
     body{background:white; color:black; padding:0}
@@ -66,72 +81,75 @@
     .table-card{page-break-inside:avoid; border:1px solid #ddd; background:white}
     .seat{background:#f6f7ff; border-color:#e6e8ff}
   }
-  .notice{ font-size:12px; color:var(--muted); }
 </style>
 </head>
 <body>
   <aside class="sidebar">
     <div>
-      <h1>Guests (Unseated)</h1>
-      <input id="search" class="search" type="text" placeholder="Search name…" />
+      <h1>未入座宾客</h1>
+      <input id="search" class="search" type="text" placeholder="搜索姓名…" />
     </div>
 
     <div class="controls">
-      <textarea id="bulkNames" rows="5" placeholder="Paste names (one per line). Optional notes like “张三（家属）”."></textarea>
+      <textarea id="bulkNames" rows="5" placeholder="批量粘贴姓名：每行一个；可带备注，如“张三（家属）”"></textarea>
       <div class="row">
-        <button class="btn" id="addGuestsBtn">Add to List</button>
-        <button class="btn ghost" id="clearGuestsBtn" title="Only clear unseated list; seated people are not affected.">Clear Unseated</button>
+        <button class="btn" id="addGuestsBtn">添加到名单</button>
+        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">清空未入座</button>
       </div>
 
       <div class="row">
-        <input id="tableName" type="text" placeholder="Table name (e.g., Table 1)">
-        <input id="tableCap" type="number" min="1" value="10" title="Capacity">
-        <button class="btn" id="addTableBtn">Add Table</button>
+        <input id="tableName" type="text" placeholder="桌名（如：1号桌）">
+        <input id="tableCap" type="number" min="1" value="10" title="座位数">
+        <button class="btn" id="addTableBtn">新增桌</button>
       </div>
 
       <div class="row">
-        <button class="btn" id="autoSeatBtn" title="Auto-fill tables from top to bottom">Auto Seat</button>
-        <button class="btn ghost" id="shuffleBtn" title="Shuffle the unseated list">Shuffle</button>
+        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">自动排座</button>
+        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">打散未入座</button>
       </div>
 
       <div class="row">
-        <button class="btn ghost" id="exportBtn">Export JSON</button>
+        <button class="btn ghost" id="exportBtn">导出JSON</button>
         <input id="importFile" type="file" accept=".json">
-        <button class="btn ghost" id="printBtn">Print</button>
+        <button class="btn ghost" id="printBtn">打印清单</button>
       </div>
 
       <div class="row">
-        <button class="btn warn" id="resetAllBtn">Reset All</button>
-      </div>
-      <div class="notice">
-        <div id="shareTip"></div>
-        <div style="margin-top:6px">Plan ID: <code id="planIdLabel"></code></div>
+        <button class="btn warn" id="resetAllBtn">重置全部</button>
       </div>
     </div>
 
-    <div id="guestList" class="guest-list" aria-label="Unseated"></div>
+    <div id="guestList" class="guest-list" aria-label="未入座列表"></div>
   </aside>
 
   <main class="main">
     <div class="toolbar">
-      <div class="pill">Realtime shared plan. Share the link below. Everyone on the same plan sees updates instantly.</div>
+      <div class="pill">实时协作：把下面的分享链接发给同事/亲友，大家看到的是同一份座位表。</div>
       <div class="stats" id="stats"></div>
     </div>
-    <div class="toolbar" style="gap:6px">
-      <button class="btn" id="shareBtn">Copy Share Link</button>
-      <span class="notice">Open this same link on any device to collaborate. Changes sync in real-time.</span>
+
+    <div class="toolbar" style="gap:10px">
+      <div class="grid-controls">
+        <span>每排桌数：</span>
+        <input id="colsRange" type="range" min="1" max="8" step="1" value="3">
+        <input id="colsNumber" type="number" min="1" max="8" step="1" value="3" style="width:64px">
+      </div>
+      <button class="btn" id="shareBtn">复制分享链接</button>
+      <span class="pill">链接：<span id="shareTip" style="opacity:.85"></span></span>
+      <span class="pill">计划ID：<code id="planIdLabel"></code></span>
     </div>
-    <div id="canvas" class="canvas" aria-label="Tables"></div>
+
+    <div id="canvas" class="canvas" aria-label="桌面画布"></div>
   </main>
 
 <script>
 (() => {
-  // ----- Supabase config: already filled with your project -----
+  // === 1) 你的 Supabase 项目信息（已留空占位，如需成品请替换为你的URL和Key） ===
   const SUPABASE_URL = "https://dlgecgypzeucpfrcxdzq.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZ2VjZ3lwemV1Y3BmcmN4ZHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwODk4ODUsImV4cCI6MjA3MDY2NTg4NX0.xz0twrBoz9xh3X7LI2uati8EKlTEq3NpKhaorzuiyCE";
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // URL hash carries the plan id: #plan=<uuid>
+  // URL hash: #plan=<uuid>
   const hashParams = new URLSearchParams((location.hash||"").slice(1));
   let planId = hashParams.get("plan");
 
@@ -144,7 +162,8 @@
     autoSeatBtn: qs('#autoSeatBtn'), shuffleBtn: qs('#shuffleBtn'),
     exportBtn: qs('#exportBtn'), importFile: qs('#importFile'), printBtn: qs('#printBtn'),
     resetAllBtn: qs('#resetAllBtn'),
-    shareBtn: qs('#shareBtn'), shareTip: qs('#shareTip'), planIdLabel: qs('#planIdLabel')
+    shareBtn: qs('#shareBtn'), shareTip: qs('#shareTip'), planIdLabel: qs('#planIdLabel'),
+    colsRange: qs('#colsRange'), colsNumber: qs('#colsNumber')
   };
 
   const uid = () => Math.random().toString(36).slice(2,9);
@@ -152,19 +171,20 @@
   function qsa(s, root=document){ return Array.from(root.querySelectorAll(s)); }
   function escapeHtml(s){ return s.replace(/[&<>\"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[c])); }
 
-  // debounce write to avoid write storms
   let writing = false;
   let writeTimer = null;
-  function scheduleSave() { if (writing) return; clearTimeout(writeTimer); writeTimer = setTimeout(saveNow, 300); }
-  async function saveNow() {
-    writing = true;
-    try{
-      const { error } = await supabase.from('plans').update({ state }).eq('id', planId);
-      if (error) console.error('Save error:', error);
-    } finally {
-      writing = false;
-    }
+
+  // === 网格列数（每排桌数） ===
+  function setCols(n){
+    n = Math.max(1, Math.min(8, Number(n)||3));
+    document.documentElement.style.setProperty('--cols', n);
+    el.colsRange.value = n; el.colsNumber.value = n;
+    localStorage.setItem('seating_cols', String(n));
   }
+  const savedCols = Number(localStorage.getItem('seating_cols')||3);
+  setCols(savedCols);
+  el.colsRange.oninput = (e)=> setCols(e.target.value);
+  el.colsNumber.oninput = (e)=> setCols(e.target.value);
 
   async function ensurePlan() {
     if (planId) return planId;
@@ -174,28 +194,28 @@
       .insert({ title: 'Seating Plan', state: seeded })
       .select('id')
       .single();
-    if (error) { alert('Failed to create plan: ' + error.message); throw error; }
+    if (error) { alert('创建计划失败：' + error.message); throw error; }
     planId = data.id;
     const p = new URL(location.href); p.hash = 'plan=' + planId; history.replaceState(null, '', p);
     return planId;
   }
-
   async function loadPlan() {
-    const { data, error } = await supabase
-      .from('plans')
-      .select('state')
-      .eq('id', planId)
-      .single();
-    if (error) { alert('Failed to load plan: ' + error.message); throw error; }
+    const { data, error } = await supabase.from('plans').select('state').eq('id', planId).single();
+    if (error) { alert('加载失败：' + error.message); throw error; }
     Object.assign(state, data.state || { guests:[], tables:[] });
     render();
   }
-
+  function scheduleSave() { if (writing) return; clearTimeout(writeTimer); writeTimer = setTimeout(saveNow, 300); }
+  async function saveNow() {
+    writing = true;
+    try{ const { error } = await supabase.from('plans').update({ state }).eq('id', planId); if (error) console.error('保存失败：', error); }
+    finally{ writing = false; }
+  }
   function subscribeRealtime() {
     supabase
       .channel('plan-'+planId)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'plans', filter: 'id=eq.'+planId }, payload => {
-        if (writing) return; // ignore echo of our own writes
+        if (writing) return;
         const newState = payload.new.state || { guests:[], tables:[] };
         state.guests = newState.guests || [];
         state.tables = newState.tables || [];
@@ -205,75 +225,123 @@
   }
 
   function render(){
-    el.planIdLabel.textContent = planId || '(creating…)';
-    el.shareTip.innerHTML = 'Share this link: <code>'+ location.href +'</code>';
+    el.planIdLabel.textContent = planId || '(创建中…)';
+    el.shareTip.textContent = location.href;
 
     const seatedIds = new Set(state.tables.flatMap(t=>t.guests));
     const filter = (el.search.value||'').trim();
     const pending = state.guests.filter(g=>!seatedIds.has(g.id)).filter(g=>!filter || g.name.includes(filter));
 
+    // 未入座列表
     el.guestList.innerHTML = '';
     if(pending.length===0){
-      const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.padding='8px'; empty.textContent='（None）'; el.guestList.appendChild(empty);
+      const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.padding='8px'; empty.textContent='（暂无未入座）'; el.guestList.appendChild(empty);
     }else{
       for(const g of pending){
         const item = document.createElement('div');
-        item.className = 'guest'; item.draggable = true; item.dataset.guestId = g.id;
-        item.innerHTML = `<span>🧑</span><span>${escapeHtml(g.name)}</span><span class="tag">Drag to seat</span>`;
-        attachGuestDrag(item);
-        el.guestList.appendChild(item);
+        item.className='guest'; item.draggable=true; item.dataset.guestId=g.id;
+        item.innerHTML = `<span>🧑</span><span>${escapeHtml(g.name)}</span><span class="tag">拖拽入座</span>`;
+        attachGuestDrag(item); el.guestList.appendChild(item);
       }
     }
 
+    // 桌面
     el.canvas.innerHTML = '';
     for(const t of state.tables){
       const card = document.createElement('section'); card.className='table-card'; card.dataset.tableId=t.id;
       card.innerHTML = `
         <div class="table-header">
           <span class="badge">🪑 ${escapeHtml(t.name)}</span>
-          <span class="capacity">Capacity ${t.capacity} | Seated ${t.guests.length}</span>
+          <span class="capacity">容量 ${t.capacity} | 已入座 ${t.guests.length}</span>
         </div>
-        <div class="dropzone" aria-label="Drop zone"></div>
+        <div class="table-visual">
+          <div class="round-wrap">
+            <div class="round">${escapeHtml(t.name)}</div>
+            <!-- 椅子将由 JS 布局生成 -->
+          </div>
+        </div>
         <div class="table-footer">
-          <a class="link rename">Rename</a> ·
-          <a class="link setcap">Set capacity</a> ·
-          <a class="link clear">Clear seats</a>
+          <a class="link rename">重命名</a> ·
+          <a class="link setcap">设置容量</a> ·
+          <a class="link clear">清空</a>
           <div class="spacer"></div>
-          <a class="link remove">Remove table</a>
+          <a class="link remove">删除桌</a>
         </div>`;
-      const dz = qs('.dropzone', card);
-      attachDropzone(dz, t.id);
-      for(const gid of t.guests){ const g = state.guests.find(x=>x.id===gid); if(!g) continue; dz.appendChild(makeSeatChip(g, t.id)); }
-      qs('.rename', card).onclick = () => { const name = prompt('Table name:', t.name); if(name && name.trim()){ t.name = name.trim(); scheduleSave(); render(); } };
-      qs('.setcap', card).onclick = () => { const cap = prompt('Capacity:', t.capacity); const n = Number(cap); if(Number.isInteger(n) && n>0){ t.capacity = n; scheduleSave(); render(); } else { alert('Please enter a positive integer.'); } };
-      qs('.clear', card).onclick = () => { if(confirm(`Clear all seats for "${t.name}"?`)){ t.guests = []; scheduleSave(); render(); } };
-      qs('.remove', card).onclick = () => { if(confirm(`Remove table "${t.name}"? Guests will return to unseated.`)){ state.tables = state.tables.filter(x=>x.id!==t.id); scheduleSave(); render(); } };
+
+      // 椅子布局（环形）
+      const wrap = qs('.round-wrap', card);
+      const seated = t.guests.map(id => state.guests.find(g=>g.id===id)).filter(Boolean);
+      const seats = t.capacity;
+      const R = 95; // 半径
+      for(let i=0;i<seats;i++){
+        const angle = (i / seats) * 2 * Math.PI - Math.PI/2;
+        const x = Math.cos(angle) * R + 110;
+        const y = Math.sin(angle) * R + 110;
+        const chair = document.createElement('div');
+        chair.className = 'chair';
+        chair.style.left = (x - 32) + 'px';
+        chair.style.top  = (y - 14) + 'px';
+        const g = seated[i];
+        if(g){
+          chair.innerHTML = `<span>${escapeHtml(shortName(g.name))}</span><span class="remove">×</span>`;
+          qs('.remove', chair).onclick = () => {
+            t.guests = t.guests.filter(id=>id!==g.id);
+            scheduleSave(); render();
+          };
+          // 允许把椅子再拖到其它桌
+          chair.draggable = true;
+          chair.dataset.guestId = g.id;
+          chair.dataset.tableId = t.id;
+          attachGuestDrag(chair);
+        }else{
+          chair.classList.add('empty');
+          chair.textContent = '空位';
+        }
+        wrap.appendChild(chair);
+      }
+
+      // 整张桌作为 dropzone（移动端点击空白快速加入）
+      wrap.addEventListener('dragover', e=>{ e.preventDefault(); });
+      wrap.addEventListener('drop', e=>{
+        e.preventDefault();
+        const gid = draggingId || e.dataTransfer.getData('text/plain'); if(!gid) return;
+        const from = state.tables.find(tt=>tt.guests.includes(gid));
+        if(from){ from.guests = from.guests.filter(id=>id!==gid); }
+        if(!t.guests.includes(gid) && t.guests.length < t.capacity){ t.guests.push(gid); }
+        scheduleSave(); render();
+      });
+      wrap.addEventListener('click', ()=>{
+        const seatedSet = new Set(state.tables.flatMap(tt=>tt.guests));
+        const first = state.guests.find(g=>!seatedSet.has(g.id));
+        if(first && t.guests.length < t.capacity){ t.guests.push(first.id); scheduleSave(); render(); }
+      });
+
+      qs('.rename', card).onclick = () => { const name = prompt('桌名：', t.name); if(name && name.trim()){ t.name=name.trim(); scheduleSave(); render(); } };
+      qs('.setcap', card).onclick = () => { const cap = prompt('容量（座位数）：', t.capacity); const n = Number(cap); if(Number.isInteger(n) && n>0){ t.capacity=n; scheduleSave(); render(); } else { alert('请输入大于 0 的整数容量'); } };
+      qs('.clear', card).onclick = () => { if(confirm(`清空 ${t.name} 的入座？`)){ t.guests=[]; scheduleSave(); render(); } };
+      qs('.remove', card).onclick = () => { if(confirm(`删除桌子“${t.name}”？`)){ state.tables = state.tables.filter(x=>x.id!==t.id); scheduleSave(); render(); } };
       el.canvas.appendChild(card);
     }
 
-    const total = state.guests.length;
-    const seated = state.tables.reduce((a,t)=>a+t.guests.length,0);
-    const unseated = total - seated;
-    const tableCount = state.tables.length;
+    // 统计
+    const total = state.guests.length, seatedCount = state.tables.reduce((a,t)=>a+t.guests.length,0);
+    const unseated = total - seatedCount, tableCount = state.tables.length;
     const fullTables = state.tables.filter(t=>t.guests.length>=t.capacity).length;
     el.stats.innerHTML = `
-      <div class="pill">Total: ${total}</div>
-      <div class="pill ${unseated===0? 'ok':''}">Seated: ${seated}</div>
-      <div class="pill ${unseated>0? 'warn':''}">Unseated: ${unseated}</div>
-      <div class="pill">Tables: ${tableCount}</div>
-      <div class="pill ${fullTables? 'warn':''}">Full tables: ${fullTables}</div>`;
+      <div class="pill">总人数：${total}</div>
+      <div class="pill ${unseated===0? 'ok':''}">已入座：${seatedCount}</div>
+      <div class="pill ${unseated>0? 'warn':''}">未入座：${unseated}</div>
+      <div class="pill">桌数：${tableCount}</div>
+      <div class="pill ${fullTables? 'warn':''}">满员桌：${fullTables}</div>`;
   }
 
-  function makeSeatChip(guest, tableId){
-    const chip = document.createElement('div');
-    chip.className='seat'; chip.draggable=true; chip.dataset.guestId=guest.id; chip.dataset.tableId=tableId;
-    chip.innerHTML = `<span>👤</span><span>${escapeHtml(guest.name)}</span><a class="link" style="margin-left:6px">Remove</a>`;
-    attachGuestDrag(chip);
-    qs('.link', chip).onclick = () => { const t = state.tables.find(t=>t.id===tableId); if(!t) return; t.guests = t.guests.filter(id=>id!==guest.id); scheduleSave(); render(); };
-    return chip;
+  function shortName(s){
+    // 显示前2~4个可见字符，去掉括号备注
+    s = s.replace(/[（(].*?[)）]/g, '').trim();
+    return s.length<=4 ? s : s.slice(0,4);
   }
 
-  // Drag & drop (desktop + simple touch support)
+  // 拖拽
   let draggingId=null, draggingFromTable=null;
   function attachGuestDrag(node){
     node.addEventListener('dragstart', e=>{
@@ -281,55 +349,35 @@
       node.classList.add('dragging'); e.dataTransfer.setData('text/plain', draggingId); e.dataTransfer.effectAllowed='move';
     });
     node.addEventListener('dragend', ()=>{
-      draggingId=null; draggingFromTable=null; node.classList.remove('dragging'); qsa('.dropzone').forEach(z=>z.classList.remove('highlight'));
+      draggingId=null; draggingFromTable=null; node.classList.remove('dragging');
     });
     node.addEventListener('touchstart', ()=>{ node.classList.add('dragging'); });
-    node.addEventListener('touchend', ()=>{ node.classList.remove('dragging'); });
+    node.addEventListener('touchend',   ()=>{ node.classList.remove('dragging'); });
   }
 
-  function attachDropzone(zone, tableId){
-    zone.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; zone.classList.add('highlight'); });
-    zone.addEventListener('dragleave', ()=>{ zone.classList.remove('highlight'); });
-    zone.addEventListener('drop', e=>{
-      e.preventDefault(); zone.classList.remove('highlight');
-      const gid = draggingId || e.dataTransfer.getData('text/plain'); if(!gid) return;
-      if(draggingFromTable){ const from = state.tables.find(t=>t.id===draggingFromTable); if(from){ from.guests = from.guests.filter(id=>id!==gid); } }
-      const t = state.tables.find(t=>t.id===tableId); if(!t) return; if(!t.guests.includes(gid)){ t.guests.push(gid); }
-      scheduleSave(); render();
-    });
-    // Quick tap add (mobile friendly): click empty area to add first unseated
-    zone.addEventListener('click', ()=>{
-      const seated = new Set(state.tables.flatMap(t=>t.guests));
-      const first = state.guests.find(g=>!seated.has(g.id));
-      if(!first) return;
-      const t = state.tables.find(t=>t.id===tableId);
-      if(t && t.guests.length < t.capacity){ t.guests.push(first.id); scheduleSave(); render(); }
-    });
-  }
-
-  // Buttons
+  // 按钮事件
   el.addGuestsBtn.onclick = () => {
     const lines = el.bulkNames.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
-    if(lines.length===0){ alert('Paste at least one name'); return; }
+    if(lines.length===0){ alert('请粘贴至少一个姓名'); return; }
     for(const name of lines){ state.guests.push({id:uid(), name}); }
     el.bulkNames.value=''; scheduleSave(); render();
   };
   el.clearGuestsBtn.onclick = () => {
-    if(!confirm('Clear only unseated list? (Seated people stay seated)')) return;
+    if(!confirm('仅清空“未入座”列表？（已在桌上的不受影响）')) return;
     const seated = new Set(state.tables.flatMap(t=>t.guests));
     state.guests = state.guests.filter(g=>seated.has(g.id)); scheduleSave(); render();
   };
   el.addTableBtn.onclick = () => {
     const name = (el.tableName.value.trim() || `${state.tables.length+1}号桌`);
     const cap = Number(el.tableCap.value);
-    if(!Number.isInteger(cap) || cap<=0){ alert('Capacity must be a positive integer'); return; }
+    if(!Number.isInteger(cap) || cap<=0){ alert('容量需为大于 0 的整数'); return; }
     state.tables.push({id:uid(), name, capacity:cap, guests:[]});
     el.tableName.value=''; scheduleSave(); render();
   };
   el.autoSeatBtn.onclick = () => {
     const seated = new Set(state.tables.flatMap(t=>t.guests));
     const queue = state.guests.filter(g=>!seated.has(g.id));
-    if(queue.length===0){ alert('No unseated guests'); return; }
+    if(queue.length===0){ alert('没有未入座的宾客'); return; }
     let idx = 0;
     for(const t of state.tables){
       while(t.guests.length < t.capacity && idx < queue.length){ t.guests.push(queue[idx].id); idx++; }
@@ -357,22 +405,22 @@
     reader.onload = () => {
       try{
         const s = JSON.parse(reader.result);
-        if(!s || !Array.isArray(s.guests) || !Array.isArray(s.tables)) throw new Error('Invalid JSON format');
+        if(!s || !Array.isArray(s.guests) || !Array.isArray(s.tables)) throw new Error('格式不正确');
         state.guests = s.guests; state.tables = s.tables; scheduleSave(); render();
-      }catch(e){ alert('Import failed: ' + e.message); }
+      }catch(e){ alert('导入失败：' + e.message); }
       ev.target.value='';
     };
     reader.readAsText(file, 'utf-8');
   };
   el.printBtn.onclick = () => window.print();
   el.resetAllBtn.onclick = () => {
-    if(!confirm('Reset all data of this plan?')) return;
+    if(!confirm('重置全部数据？（清空所有桌子与名单）')) return;
     state.guests = []; state.tables = []; seed(); scheduleSave(); render();
   };
   el.search.oninput = () => render();
   el.shareBtn.onclick = async () => {
-    try{ await navigator.clipboard.writeText(location.href); alert('Share link copied!'); }
-    catch{ prompt('Copy this link:', location.href); }
+    try{ await navigator.clipboard.writeText(location.href); alert('已复制分享链接'); }
+    catch{ prompt('复制此链接：', location.href); }
   };
 
   function seed(){
