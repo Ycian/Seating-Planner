@@ -3,78 +3,474 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>宾客座位规划（实时协作 | 中文）</title>
+<title>宾客座位规划（支持人数 | 实时协作）</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-  :root{ --bg:#0f1220; --panel:#171b2c; --accent:#6aa7ff; --accent-2:#9f7bff; --text:#e7ecff; --muted:#9aa4c7; --card:#1c2140; --chip:#242a52; --border:rgba(255,255,255,.08); --cols:3; }
-  *{box-sizing:border-box} html,body{height:100%}
-  body{ margin:0; background: radial-gradient(1200px 600px at 20% -10%, #1a2040 0, #0f1220 70%), var(--bg); color:var(--text); font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; display:flex; gap:12px; padding:12px; overflow:hidden; }
-  .sidebar{ width:320px; min-width:260px; max-width:380px; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  :root{ 
+    --bg:#0f1220; 
+    --panel:#171b2c; 
+    --accent:#6aa7ff; 
+    --accent-2:#9f7bff; 
+    --text:#e7ecff; 
+    --muted:#9aa4c7; 
+    --card:#1c2140; 
+    --chip:#242a52; 
+    --border:rgba(255,255,255,.08); 
+    --cols:3; 
+    --success:#4cd964;
+    --warning:#ffcc00;
+    --error:#ff3b30;
+  }
+  *{box-sizing:border-box} 
+  html,body{height:100%}
+  body{ 
+    margin:0; 
+    background: radial-gradient(1200px 600px at 20% -10%, #1a2040 0, #0f1220 70%), var(--bg); 
+    color:var(--text); 
+    font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; 
+    display:flex; 
+    gap:12px; 
+    padding:12px; 
+    overflow:hidden; 
+  }
+  .sidebar{ 
+    width:320px; 
+    min-width:260px; 
+    max-width:380px; 
+    background:var(--panel); 
+    border:1px solid var(--border); 
+    border-radius:16px; 
+    padding:14px; 
+    display:flex; 
+    flex-direction:column; 
+    gap:10px; 
+  }
   h1{font-size:16px; margin:0 0 8px 0; letter-spacing:.5px}
   .controls,.stats{display:grid; gap:8px}
-  .controls input[type="text"], .controls input[type="number"], textarea, input[type="file"]{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0f1330; color:var(--text); outline:none; }
+  .controls input[type="text"], 
+  .controls input[type="number"], 
+  textarea, 
+  input[type="file"]{ 
+    width:100%; 
+    padding:10px 12px; 
+    border-radius:10px; 
+    border:1px solid var(--border); 
+    background:#0f1330; 
+    color:var(--text); 
+    outline:none; 
+    transition:border-color 0.2s;
+  }
+  .controls input:focus, textarea:focus {
+    border-color: var(--accent);
+  }
   .row{display:flex; gap:8px; flex-wrap:wrap}
-  .btn{ appearance:none; border:none; cursor:pointer; padding:10px 12px; border-radius:10px; color:white; background:linear-gradient(135deg,var(--accent),var(--accent-2)); box-shadow:0 6px 20px rgba(106,167,255,.25); transition:.15s transform ease,.15s filter ease,.15s opacity ease; white-space:nowrap; }
-  .btn:hover{filter:brightness(1.05)} .btn:active{transform:translateY(1px)} .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none}
+  .btn{ 
+    appearance:none; 
+    border:none; 
+    cursor:pointer; 
+    padding:10px 12px; 
+    border-radius:10px; 
+    color:white; 
+    background:linear-gradient(135deg,var(--accent),var(--accent-2)); 
+    box-shadow:0 6px 20px rgba(106,167,255,.25); 
+    transition:.15s transform ease,.15s filter ease,.15s opacity ease; 
+    white-space:nowrap; 
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+  }
+  .btn:hover{filter:brightness(1.05)} 
+  .btn:active{transform:translateY(1px)} 
+  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none}
   .btn.warn{background:linear-gradient(135deg,#ff8a8a,#ff6b6b)}
   .guest-list{flex:1; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:4px; border:1px dashed var(--border); border-radius:12px; background:rgba(0,0,0,.12)}
-  .guest{user-select:none; display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; background:var(--chip); border:1px solid var(--border)}
-  .guest.dragging{opacity:.6} .guest .tag{font-size:12px; color:var(--muted); margin-left:auto}
-  .search{ padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#0f1330; color:var(--text) }
+  .guest{
+    user-select:none; 
+    display:flex; 
+    align-items:center; 
+    gap:8px; 
+    padding:8px 10px; 
+    border-radius:10px; 
+    background:var(--chip); 
+    border:1px solid var(--border);
+    transition:all 0.2s;
+  }
+  .guest:hover {
+    border-color: rgba(255,255,255,0.2);
+  }
+  .guest.dragging{opacity:.6; transform:scale(0.98)} 
+  .guest .tag{font-size:12px; color:var(--muted); margin-left:auto}
+  .guest .count {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.1);
+    margin-right: 4px;
+  }
+  .guest .category {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.1);
+    margin-right: 4px;
+  }
+  .search{ 
+    padding:8px 10px; 
+    border-radius:10px; 
+    border:1px solid var(--border); 
+    background:#0f1330; 
+    color:var(--text);
+    transition:border-color 0.2s;
+  }
+  .search:focus {
+    border-color: var(--accent);
+  }
   .main{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px}
-  .toolbar{ background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center }
-  .stats{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-left:auto }
-  .pill{ padding:8px 10px; border-radius:999px; background:var(--chip); border:1px solid var(--border); color:var(--text) }
-  .canvas{ flex:1; overflow:auto; padding:12px; display:grid; grid-template-columns: repeat(var(--cols), minmax(260px,1fr)); gap:12px }
-  .table-card{ background:var(--card); border:1px solid var(--border); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px }
+  .toolbar{ 
+    background:var(--panel); 
+    border:1px solid var(--border); 
+    border-radius:16px; 
+    padding:10px; 
+    display:flex; 
+    gap:8px; 
+    flex-wrap:wrap; 
+    align-items:center 
+  }
+  .stats{ 
+    display:flex; 
+    align-items:center; 
+    gap:10px; 
+    flex-wrap:wrap; 
+    margin-left:auto 
+  }
+  .pill{ 
+    padding:8px 10px; 
+    border-radius:999px; 
+    background:var(--chip); 
+    border:1px solid var(--border); 
+    color:var(--text) 
+  }
+  .canvas{ 
+    flex:1; 
+    overflow:auto; 
+    padding:12px; 
+    display:grid; 
+    grid-template-columns: repeat(var(--cols), minmax(260px,1fr)); 
+    gap:12px 
+  }
+  .table-card{ 
+    background:var(--card); 
+    border:1px solid var(--border); 
+    border-radius:16px; 
+    padding:12px; 
+    display:flex; 
+    flex-direction:column; 
+    gap:10px;
+    transition:all 0.2s;
+  }
+  .table-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
   .table-header{ display:flex; align-items:center; gap:10px }
-  .badge{ font-weight:600; padding:6px 10px; border-radius:999px; background:linear-gradient(135deg,#27305d,#1f2550); border:1px solid var(--border) }
+  .badge{ 
+    font-weight:600; 
+    padding:6px 10px; 
+    border-radius:999px; 
+    background:linear-gradient(135deg,#27305d,#1f2550); 
+    border:1px solid var(--border) 
+  }
   .capacity{ margin-left:auto; font-size:12px; color:var(--muted) }
   .table-visual{ display:flex; align-items:center; justify-content:center; padding:10px 0 6px }
   .round-wrap{ position:relative; width:220px; height:220px; margin:auto }
-  .round{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:120px; height:120px; border-radius:50%; background:#2a2f68; border:2px solid var(--border); box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); display:flex; align-items:center; justify-content:center; color:#cfe3ff; font-weight:600 }
-  .chair{ position:absolute; width:64px; height:28px; border-radius:14px; background:#222861; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; padding:0 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .round{ 
+    position:absolute; 
+    left:50%; 
+    top:50%; 
+    transform:translate(-50%,-50%); 
+    width:120px; 
+    height:120px; 
+    border-radius:50%; 
+    background:#2a2f68; 
+    border:2px solid var(--border); 
+    box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); 
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    color:#cfe3ff; 
+    font-weight:600 
+  }
+  .chair{ 
+    position:absolute; 
+    width:64px; 
+    height:28px; 
+    border-radius:14px; 
+    background:#222861; 
+    border:1px solid var(--border); 
+    display:flex; 
+    align-items:center; 
+    justify-content:center; 
+    padding:0 6px; 
+    white-space:nowrap; 
+    overflow:hidden; 
+    text-overflow:ellipsis;
+    transition:all 0.2s;
+  }
+  .chair:hover {
+    transform: scale(1.05);
+    z-index: 10;
+  }
   .chair.empty{ opacity:.45; font-size:12px; color:var(--muted) }
-  .chair .kick{ margin-left:6px; text-decoration:underline; cursor:pointer; color:#f8b4b4; font-size:12px }
+  .chair.conflict {
+    background: rgba(255, 59, 48, 0.3);
+    border-color: var(--error);
+  }
+  .chair .count {
+    font-size: 10px;
+    margin-left: 4px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+  .chair .kick{ 
+    margin-left:6px; 
+    text-decoration:underline; 
+    cursor:pointer; 
+    color:#f8b4b4; 
+    font-size:12px;
+    opacity:0.7;
+    transition:opacity 0.2s;
+  }
+  .chair:hover .kick {
+    opacity:1;
+  }
   .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
-  .spacer{flex:1} .link{color:var(--accent); cursor:pointer; text-decoration:underline; font-size:12px}
-  .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap } .grid-controls input[type="range"]{ width:160px }
-  @media (max-width:920px){ body{flex-direction:column; overflow:auto; padding:10px} .sidebar{width:auto; max-width:none} .canvas{grid-template-columns:repeat(1, minmax(260px,1fr))} }
+  .spacer{flex:1} 
+  .link{
+    color:var(--accent); 
+    cursor:pointer; 
+    text-decoration:underline; 
+    font-size:12px;
+    transition:color 0.2s;
+  }
+  .link:hover {
+    color: var(--accent-2);
+  }
+  .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap } 
+  .grid-controls input[type="range"]{ width:160px }
+  
+  /* 提示消息样式 */
+  .toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .toast {
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: toastIn 0.3s ease forwards, toastOut 0.3s ease 2.7s forwards;
+    max-width: 300px;
+  }
+  .toast.success { background-color: var(--success); }
+  .toast.error { background-color: var(--error); }
+  .toast.warning { background-color: var(--warning); color: #333; }
+  
+  @keyframes toastIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes toastOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+  }
+  
+  /* 宾客分类选择器 */
+  .category-selector {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .category-btn {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    background: var(--chip);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .category-btn:hover {
+    background: rgba(255,255,255,0.15);
+  }
+  .category-btn.active {
+    background: var(--accent);
+    color: white;
+  }
+  
+  /* 批量操作菜单 */
+  .batch-actions {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  
+  /* 打印样式优化 */
+  @media print {
+    body {
+      background: white;
+      color: black;
+      display: block;
+      padding: 20px;
+      overflow: visible;
+    }
+    .sidebar, .toolbar {
+      display: none !important;
+    }
+    .main {
+      width: 100%;
+      display: block;
+    }
+    .canvas {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      padding: 0;
+    }
+    .table-card {
+      background: white;
+      border: 1px solid #ccc;
+      color: black;
+      page-break-inside: avoid;
+    }
+    .round {
+      background: #f0f0f0;
+      border-color: #ccc;
+      color: black;
+    }
+    .chair {
+      background: #f0f0f0;
+      border-color: #ccc;
+      color: black;
+    }
+    .chair.empty {
+      display: none;
+    }
+    .table-footer {
+      display: none;
+    }
+  }
+  
+  @media (max-width:920px){ 
+    body{
+      flex-direction:column; 
+      overflow:auto; 
+      padding:10px
+    } 
+    .sidebar{
+      width:auto; 
+      max-width:none
+    } 
+    .canvas{
+      grid-template-columns:repeat(1, minmax(260px,1fr))
+    } 
+  }
 </style>
 </head>
 <body>
+  <!-- 提示消息容器 -->
+  <div class="toast-container" id="toastContainer"></div>
+
   <aside class="sidebar">
     <div>
       <h1>未入座宾客</h1>
       <input id="search" class="search" type="text" placeholder="搜索姓名…" />
+      
+      <!-- 宾客分类筛选 -->
+      <div class="category-selector" id="categoryFilter">
+        <div class="category-btn active" data-category="all">全部</div>
+        <div class="category-btn" data-category="family">家人</div>
+        <div class="category-btn" data-category="friend">朋友</div>
+        <div class="category-btn" data-category="colleague">同事</div>
+        <div class="category-btn" data-category="other">其他</div>
+      </div>
     </div>
 
     <div class="controls">
-      <textarea id="bulkNames" rows="5" placeholder="批量粘贴姓名：每行一个；可带备注，如“张三（家属）”"></textarea>
+      <textarea id="bulkNames" rows="5" placeholder="批量粘贴姓名：每行一个；可带人数，如“张三 2”表示张三一行共2人；可带备注，如“李四 4（同事）”"></textarea>
+      
+      <!-- 宾客分类选择 -->
+      <div>
+        <label style="font-size:12px; color:var(--muted); margin-bottom:4px; display:block;">添加为：</label>
+        <select id="guestCategory" style="width:100%; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
+          <option value="family">家人</option>
+          <option value="friend">朋友</option>
+          <option value="colleague">同事</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+      
       <div class="row">
-        <button class="btn" id="addGuestsBtn">添加到名单</button>
-        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">清空未入座</button>
+        <button class="btn" id="addGuestsBtn">
+          <i class="fas fa-user-plus"></i> 添加到名单
+        </button>
+        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">
+          <i class="fas fa-trash"></i> 清空未入座
+        </button>
       </div>
 
       <div class="row">
         <input id="tableName" type="text" placeholder="桌名（如：1号桌）">
         <input id="tableCap" type="number" min="1" value="10" title="座位数">
-        <button class="btn" id="addTableBtn">新增桌</button>
+        <button class="btn" id="addTableBtn">
+          <i class="fas fa-plus-square"></i> 新增桌
+        </button>
       </div>
 
       <div class="row">
-        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">自动排座</button>
-        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">打散未入座</button>
+        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">
+          <i class="fas fa-magic"></i> 自动排座
+        </button>
+        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">
+          <i class="fas fa-random"></i> 打散未入座
+        </button>
+      </div>
+      
+      <!-- 批量操作 -->
+      <div class="batch-actions">
+        <h1>批量操作</h1>
+        <div class="row">
+          <select id="batchTableSelect" style="flex:1; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
+            <option value="">选择目标桌...</option>
+          </select>
+          <button class="btn ghost" id="batchMoveBtn" title="将所有未入座宾客移动到所选桌">
+            <i class="fas fa-arrow-right"></i> 移动全部
+          </button>
+        </div>
       </div>
 
       <div class="row">
-        <button class="btn ghost" id="exportBtn">导出JSON</button>
+        <button class="btn ghost" id="exportBtn">
+          <i class="fas fa-download"></i> 导出JSON
+        </button>
         <input id="importFile" type="file" accept=".json">
-        <button class="btn ghost" id="printBtn">打印清单</button>
+        <button class="btn ghost" id="printBtn">
+          <i class="fas fa-print"></i> 打印清单
+        </button>
       </div>
 
       <div class="row">
-        <button class="btn warn" id="resetAllBtn">重置全部</button>
+        <button class="btn warn" id="resetAllBtn">
+          <i class="fas fa-exclamation-triangle"></i> 重置全部
+        </button>
       </div>
     </div>
 
@@ -93,7 +489,9 @@
         <input id="colsRange" type="range" min="1" max="8" step="1" value="3">
         <input id="colsNumber" type="number" min="1" max="8" step="1" value="3" style="width:64px">
       </div>
-      <button class="btn" id="shareBtn">复制分享链接</button>
+      <button class="btn" id="shareBtn">
+        <i class="fas fa-share-alt"></i> 复制分享链接
+      </button>
       <span class="pill">链接：<span id="shareTip" style="opacity:.85"></span></span>
       <span class="pill">计划ID：<code id="planIdLabel"></code></span>
     </div>
@@ -101,115 +499,413 @@
     <div id="canvas" class="canvas" aria-label="桌面画布"></div>
   </main>
 
+  <!-- 引入Font Awesome图标库 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
 <script>
 (() => {
+  // 安全性提示：在生产环境中，建议限制Supabase匿名密钥的权限
+  // 并考虑添加用户认证机制以控制访问权限
   const SUPABASE_URL = "https://dlgecgypzeucpfrcxdzq.supabase.co";
   const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZ2VjZ3lwemV1Y3BmcmN4ZHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwODk4ODUsImV4cCI6MjA3MDY2NTg4NX0.xz0twrBoz9xh3X7LI2uati8EKlTEq3NpKhaorzuiyCE";
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+  // 工具函数
   const uid = () => Math.random().toString(36).slice(2,9);
   const qs = (s, r=document) => r.querySelector(s);
   const qsa = (s, r=document) => Array.from(r.querySelectorAll(s));
   const escapeHtml = (s) => s.replace(/[&<>\"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[c]));
+  
+  // 解析宾客输入，支持"姓名 数量"格式
+  const parseGuestInput = (inputStr) => {
+    // 先去除可能的备注信息（括号内的内容）
+    const nameWithoutNotes = inputStr.replace(/[（(].*?[)）]/g, '').trim();
+    
+    // 匹配"名称 数量"格式
+    const match = nameWithoutNotes.match(/^(.+)\s+(\d+)$/);
+    if (match) {
+      return {
+        name: match[1].trim(),
+        count: Math.max(1, parseInt(match[2], 10)) // 确保至少1人
+      };
+    }
+    
+    // 默认1人
+    return {
+      name: nameWithoutNotes,
+      count: 1
+    };
+  };
+  
+  // 显示提示消息
+  const showToast = (message, type = 'success', duration = 3000) => {
+    const container = qs('#toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // 根据类型添加不同图标
+    let icon = 'check-circle';
+    if (type === 'error') icon = 'times-circle';
+    if (type === 'warning') icon = 'exclamation-circle';
+    
+    toast.innerHTML = `<i class="fas fa-${icon}"></i><span>${message}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.remove();
+    }, duration);
+  };
+
+  // 输入验证
+  const validateInput = {
+    name: (name) => {
+      if (!name || name.trim() === '') return { valid: false, message: '姓名不能为空' };
+      if (name.length > 50) return { valid: false, message: '姓名过长，请控制在50字符以内' };
+      return { valid: true };
+    },
+    count: (count) => {
+      const num = Number(count);
+      if (isNaN(num) || num < 1 || !Number.isInteger(num)) {
+        return { valid: false, message: '人数必须是大于0的整数' };
+      }
+      if (num > 10) return { valid: false, message: '人数过多，请控制在10人以内' };
+      return { valid: true };
+    },
+    tableName: (name) => {
+      if (!name || name.trim() === '') return { valid: false, message: '桌名不能为空' };
+      if (name.length > 30) return { valid: false, message: '桌名过长，请控制在30字符以内' };
+      return { valid: true };
+    },
+    capacity: (cap) => {
+      const num = Number(cap);
+      if (isNaN(num) || num < 1 || !Number.isInteger(num)) {
+        return { valid: false, message: '容量必须是大于0的整数' };
+      }
+      if (num > 100) return { valid: false, message: '容量过大，请控制在100以内' };
+      return { valid: true };
+    }
+  };
 
   const hashParams = new URLSearchParams((location.hash||"").slice(1));
   let planId = hashParams.get("plan");
 
-  const state = { guests: [], tables: [] };
+  // 扩展状态结构，增加宾客数量和分类
+  const state = { 
+    guests: [], // 每个宾客包含 id, name, count, category
+    tables: [] 
+  };
+  
   const el = {
-    search: qs('#search'), bulkNames: qs('#bulkNames'),
-    addGuestsBtn: qs('#addGuestsBtn'), clearGuestsBtn: qs('#clearGuestsBtn'),
-    tableName: qs('#tableName'), tableCap: qs('#tableCap'), addTableBtn: qs('#addTableBtn'),
-    guestList: qs('#guestList'), canvas: qs('#canvas'), stats: qs('#stats'),
-    autoSeatBtn: qs('#autoSeatBtn'), shuffleBtn: qs('#shuffleBtn'),
-    exportBtn: qs('#exportBtn'), importFile: qs('#importFile'), printBtn: qs('#printBtn'),
+    search: qs('#search'), 
+    bulkNames: qs('#bulkNames'),
+    addGuestsBtn: qs('#addGuestsBtn'), 
+    clearGuestsBtn: qs('#clearGuestsBtn'),
+    tableName: qs('#tableName'), 
+    tableCap: qs('#tableCap'), 
+    addTableBtn: qs('#addTableBtn'),
+    guestList: qs('#guestList'), 
+    canvas: qs('#canvas'), 
+    stats: qs('#stats'),
+    autoSeatBtn: qs('#autoSeatBtn'), 
+    shuffleBtn: qs('#shuffleBtn'),
+    exportBtn: qs('#exportBtn'), 
+    importFile: qs('#importFile'), 
+    printBtn: qs('#printBtn'),
     resetAllBtn: qs('#resetAllBtn'),
-    shareBtn: qs('#shareBtn'), shareTip: qs('#shareTip'), planIdLabel: qs('#planIdLabel'),
-    colsRange: qs('#colsRange'), colsNumber: qs('#colsNumber')
+    shareBtn: qs('#shareBtn'), 
+    shareTip: qs('#shareTip'), 
+    planIdLabel: qs('#planIdLabel'),
+    colsRange: qs('#colsRange'), 
+    colsNumber: qs('#colsNumber'),
+    guestCategory: qs('#guestCategory'),
+    categoryFilter: qs('#categoryFilter'),
+    batchTableSelect: qs('#batchTableSelect'),
+    batchMoveBtn: qs('#batchMoveBtn')
   };
 
   let writing = false, writeTimer = null;
+  // 增加节流机制，优化保存性能
+  const SAVE_DELAY = 500; // 500ms内的多次修改合并为一次保存
 
-  // 每排桌数
+  // 每排桌数设置
   function setCols(n){
     n = Math.max(1, Math.min(8, Number(n)||3));
     document.documentElement.style.setProperty('--cols', n);
-    el.colsRange.value = n; el.colsNumber.value = n;
+    el.colsRange.value = n; 
+    el.colsNumber.value = n;
     localStorage.setItem('seating_cols', String(n));
   }
+  
+  // 初始化列数
   setCols(Number(localStorage.getItem('seating_cols')||3));
   el.colsRange.oninput = e => setCols(e.target.value);
   el.colsNumber.oninput = e => setCols(e.target.value);
 
+  // 确保计划存在
   async function ensurePlan(){
     if (planId) return planId;
-    const seeded = seed();
-    const { data, error } = await supabase.from('plans').insert({ title: 'Seating Plan', state: seeded }).select('id').single();
-    if (error) { alert('创建计划失败：' + error.message); throw error; }
-    planId = data.id;
-    const p = new URL(location.href); p.hash = 'plan=' + planId; history.replaceState(null, '', p);
-    return planId;
-  }
-
-  async function loadPlan(){
-    const { data, error } = await supabase.from('plans').select('state').eq('id', planId).single();
-    if (error) { alert('加载失败：' + error.message); return; }
-    Object.assign(state, (data && data.state) ? data.state : { guests:[], tables:[] });
-    // 旧计划为空 → 自动填充示例
-    var _gl=(state&&state.guests)?state.guests.length:0; var _tl=(state&&state.tables)?state.tables.length:0; if (_gl===0 && _tl===0){
-      const s = seed(); state.guests = s.guests; state.tables = s.tables; scheduleSave();
+    try {
+      const seeded = seed();
+      const { data, error } = await supabase
+        .from('plans')
+        .insert({ title: 'Seating Plan', state: seeded })
+        .select('id')
+        .single();
+        
+      if (error) { 
+        showToast('创建计划失败：' + error.message, 'error');
+        throw error; 
+      }
+      
+      planId = data.id;
+      const p = new URL(location.href); 
+      p.hash = 'plan=' + planId; 
+      history.replaceState(null, '', p);
+      showToast('计划创建成功');
+      return planId;
+    } catch (error) {
+      console.error('创建计划失败:', error);
+      throw error;
     }
-    render();
   }
 
-  function scheduleSave(){ if (writing) return; clearTimeout(writeTimer); writeTimer = setTimeout(saveNow, 250); }
+  // 加载计划
+  async function loadPlan(){
+    try {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('state')
+        .eq('id', planId)
+        .single();
+        
+      if (error) { 
+        showToast('加载失败：' + error.message, 'error');
+        return; 
+      }
+      
+      Object.assign(state, (data && data.state) ? data.state : { guests:[], tables:[] });
+      
+      // 处理旧版本数据兼容性（添加count和category字段）
+      state.guests = state.guests.map(guest => {
+        if (guest.count === undefined) guest.count = 1;
+        if (!guest.category) guest.category = 'other';
+        return guest;
+      });
+      
+      // 旧计划为空 → 自动填充示例
+      const _gl = (state && state.guests) ? state.guests.length : 0; 
+      const _tl = (state && state.tables) ? state.tables.length : 0; 
+      
+      if (_gl === 0 && _tl === 0) {
+        const s = seed(); 
+        state.guests = s.guests; 
+        state.tables = s.tables; 
+        scheduleSave();
+      }
+      
+      render();
+      showToast('计划加载成功');
+    } catch (error) {
+      console.error('加载计划失败:', error);
+      showToast('加载计划失败，请刷新页面重试', 'error');
+    }
+  }
+
+  // 延迟保存，优化性能
+  function scheduleSave(){ 
+    if (writing) return;
+    clearTimeout(writeTimer);
+    writeTimer = setTimeout(saveNow, SAVE_DELAY);
+  }
+  
+  // 执行保存
   async function saveNow(){
+    if (!planId) return;
+    
     writing = true;
-    try{ await supabase.from('plans').update({ state }).eq('id', planId); } finally { writing = false; }
+    try {
+      // 检测座位冲突并处理
+      detectAndFixConflicts();
+      
+      const { error } = await supabase
+        .from('plans')
+        .update({ state })
+        .eq('id', planId);
+        
+      if (error) {
+        console.error('保存失败:', error);
+        showToast('保存失败: ' + error.message, 'error');
+      }
+    } catch (error) {
+      console.error('保存过程出错:', error);
+      showToast('保存过程出错，请重试', 'error');
+    } finally {
+      writing = false;
+    }
   }
 
+  // 订阅实时更新
   function subscribeRealtime(){
+    if (!planId) return;
+    
     supabase.channel('plan-'+planId)
-      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'plans', filter:'id=eq.'+planId }, payload => {
-        if (writing) return;
-        const newState = payload.new.state || { guests:[], tables:[] };
-        state.guests = newState.guests || [];
-        state.tables = newState.tables || [];
-        render();
-      })
-      .subscribe();
+      .on('postgres_changes', 
+        { event:'UPDATE', schema:'public', table:'plans', filter:'id=eq.'+planId }, 
+        payload => {
+          if (writing) return;
+          
+          try {
+            const newState = payload.new.state || { guests:[], tables:[] };
+            state.guests = newState.guests || [];
+            state.tables = newState.tables || [];
+            
+            // 处理兼容性
+            state.guests = state.guests.map(guest => {
+              if (guest.count === undefined) guest.count = 1;
+              if (!guest.category) guest.category = 'other';
+              return guest;
+            });
+            
+            render();
+            showToast('数据已更新', 'success', 2000);
+          } catch (error) {
+            console.error('处理实时更新失败:', error);
+            showToast('更新数据时出错', 'error');
+          }
+        }
+      )
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') {
+          showToast('已连接到实时协作', 'success', 2000);
+        } else if (status === 'CHANNEL_ERROR') {
+          showToast('实时协作连接出错', 'error');
+        }
+      });
   }
 
+  // 检测并处理座位冲突（同一宾客出现在多个座位）
+  function detectAndFixConflicts() {
+    const guestCounts = {};
+    
+    // 统计每个宾客出现的次数
+    state.tables.forEach(table => {
+      table.guests.forEach(guestId => {
+        guestCounts[guestId] = (guestCounts[guestId] || 0) + 1;
+      });
+    });
+    
+    // 找出冲突的宾客
+    const conflictGuests = Object.entries(guestCounts)
+      .filter(([_, count]) => count > 1)
+      .map(([guestId, _]) => guestId);
+      
+    if (conflictGuests.length > 0) {
+      // 处理冲突：只保留第一次出现，移除后续出现
+      const seen = new Set();
+      state.tables.forEach(table => {
+        const newGuests = [];
+        table.guests.forEach(guestId => {
+          if (conflictGuests.includes(guestId)) {
+            if (!seen.has(guestId)) {
+              seen.add(guestId);
+              newGuests.push(guestId);
+            }
+          } else {
+            newGuests.push(guestId);
+          }
+        });
+        table.guests = newGuests;
+      });
+      
+      showToast(`已自动修复 ${conflictGuests.length} 个座位冲突`, 'warning');
+    }
+    
+    return conflictGuests.length > 0;
+  }
+
+  // 计算桌子当前已占用的座位数（考虑宾客人数）
+  function getTableOccupiedSeats(tableId) {
+    const table = state.tables.find(t => t.id === tableId);
+    if (!table) return 0;
+    
+    return table.guests.reduce((total, guestId) => {
+      const guest = state.guests.find(g => g.id === guestId);
+      return total + (guest ? guest.count : 1);
+    }, 0);
+  }
+
+  // 渲染界面
   function render(){
-    el.planIdLabel.textContent = planId || '(创建中…)';
+    if (!planId) return;
+    
+    el.planIdLabel.textContent = planId;
     el.shareTip.textContent = location.href;
 
+    // 更新批量操作的桌选择器
+    updateBatchTableSelect();
+    
     const seatedIds = new Set(state.tables.flatMap(t=>t.guests));
-    const filter = (el.search.value||'').trim();
-    const pending = state.guests.filter(g=>!seatedIds.has(g.id)).filter(g=>!filter || g.name.includes(filter));
+    const filterText = (el.search.value||'').trim().toLowerCase();
+    const activeCategory = qs('#categoryFilter .category-btn.active').dataset.category;
+    
+    // 筛选未入座宾客
+    let pending = state.guests
+      .filter(g => !seatedIds.has(g.id))
+      .filter(g => !filterText || g.name.toLowerCase().includes(filterText))
+      .filter(g => activeCategory === 'all' || g.category === activeCategory);
 
-    // 未入座
+    // 渲染未入座列表
     el.guestList.innerHTML = '';
     if (pending.length === 0){
-      const empty = document.createElement('div'); empty.style.color='var(--muted)'; empty.style.padding='8px'; empty.textContent='（暂无未入座）';
+      const empty = document.createElement('div'); 
+      empty.style.color = 'var(--muted)'; 
+      empty.style.padding = '8px'; 
+      empty.textContent = '（暂无未入座）';
       el.guestList.appendChild(empty);
     } else {
       for (const g of pending){
         const item = document.createElement('div');
-        item.className = 'guest'; item.draggable = true; item.dataset.guestId = g.id;
-        item.innerHTML = `<span>🧑</span><span>${escapeHtml(g.name)}</span><span class="tag">拖拽入座</span>`;
-        attachGuestDrag(item); el.guestList.appendChild(item);
+        item.className = 'guest'; 
+        item.draggable = true; 
+        item.dataset.guestId = g.id;
+        
+        // 获取分类显示名称
+        const categoryNames = {
+          family: '家人',
+          friend: '朋友',
+          colleague: '同事',
+          other: '其他'
+        };
+        
+        item.innerHTML = `
+          <span>🧑</span>
+          <span class="count">${g.count}人</span>
+          <span class="category">${categoryNames[g.category]}</span>
+          <span>${escapeHtml(g.name)}</span>
+          <span class="tag">拖拽入座</span>`;
+          
+        attachGuestDrag(item); 
+        el.guestList.appendChild(item);
       }
     }
 
-    // 桌面
+    // 渲染桌面
     el.canvas.innerHTML = '';
     for (const t of state.tables){
-      const card = document.createElement('section'); card.className='table-card'; card.dataset.tableId=t.id;
+      const card = document.createElement('section'); 
+      card.className = 'table-card'; 
+      card.dataset.tableId = t.id;
+      
+      // 计算已占用座位数（考虑宾客人数）
+      const occupiedSeats = getTableOccupiedSeats(t.id);
+      // 检查桌子是否已满
+      const isFull = occupiedSeats >= t.capacity;
+      const fullIndicator = isFull ? '<span style="color:var(--warning);margin-left:4px;">(已满)</span>' : '';
+      
       card.innerHTML = `
         <div class="table-header">
-          <span class="badge">🪑 ${escapeHtml(t.name)}</span>
-          <span class="capacity">容量 ${t.capacity} | 已入座 ${t.guests.length}</span>
+          <span class="badge">🪑 ${escapeHtml(t.name)}${fullIndicator}</span>
+          <span class="capacity">容量 ${t.capacity} | 已占用 ${occupiedSeats}</span>
         </div>
         <div class="table-visual"><div class="round-wrap"><div class="round">${escapeHtml(t.name)}</div></div></div>
         <div class="table-footer">
@@ -221,157 +917,718 @@
         </div>`;
 
       const wrap = qs('.round-wrap', card);
-      const seated = t.guests.map(id => state.guests.find(g=>g.id===id)).filter(Boolean);
+      const seated = t.guests.map(id => state.guests.find(g => g.id === id)).filter(Boolean);
       const seats = t.capacity, R = 95;
-      for (let i=0; i<seats; i++){
-        const angle = (i/seats)*2*Math.PI - Math.PI/2;
-        const x = Math.cos(angle)*R + 110, y = Math.sin(angle)*R + 110;
+      
+      // 检测当前桌的冲突宾客
+      const tableGuestIds = t.guests;
+      const duplicateIds = [];
+      const idCount = {};
+      
+      tableGuestIds.forEach(id => {
+        idCount[id] = (idCount[id] || 0) + 1;
+        if (idCount[id] > 1) {
+          duplicateIds.push(id);
+        }
+      });
+      
+      // 渲染椅子
+      for (let i = 0; i < seats; i++){
+        const angle = (i / seats) * 2 * Math.PI - Math.PI / 2;
+        const x = Math.cos(angle) * R + 110; 
+        const y = Math.sin(angle) * R + 110;
+        
         const chair = document.createElement('div');
         chair.className = 'chair';
-        chair.style.left = (x-32)+'px'; chair.style.top = (y-14)+'px';
-        const g = seated[i];
-        if (g){
-          chair.innerHTML = `<span>${escapeHtml(shortName(g.name))}</span><span class="kick">×</span>`;
-          const kick = chair.querySelector('.kick');
-          kick.onclick = (ev) => { ev.stopPropagation(); t.guests = t.guests.filter(id=>id!==g.id); scheduleSave(); render(); };
-          chair.draggable = true; chair.dataset.guestId = g.id; chair.dataset.tableId = t.id; attachGuestDrag(chair);
-        } else {
-          chair.classList.add('empty'); chair.textContent = '空位';
+        chair.style.left = (x - 32) + 'px'; 
+        chair.style.top = (y - 14) + 'px';
+        
+        // 查找这个座位是否被占用
+        let occupiedBy = null;
+        let currentSeat = 0;
+        
+        // 计算每个宾客占用的座位范围
+        for (const guest of seated) {
+          if (i >= currentSeat && i < currentSeat + guest.count) {
+            occupiedBy = guest;
+            break;
+          }
+          currentSeat += guest.count;
         }
+        
+        if (occupiedBy) {
+          // 标记冲突的座位
+          const isConflicted = duplicateIds.includes(occupiedBy.id) || 
+            state.tables.some(otherTable => 
+              otherTable.id !== t.id && otherTable.guests.includes(occupiedBy.id)
+            );
+          
+          if (isConflicted) {
+            chair.classList.add('conflict');
+          }
+          
+          // 只在第一个座位显示宾客名称和删除按钮
+          const isFirstSeat = i === currentSeat;
+          chair.innerHTML = isFirstSeat 
+            ? `<span>${escapeHtml(shortName(occupiedBy.name))}</span><span class="count">${occupiedBy.count}</span><span class="kick">×</span>`
+            : `<span>${escapeHtml(shortName(occupiedBy.name))}</span><span class="count">+${i - currentSeat}</span>`;
+          
+          if (isFirstSeat) {
+            const kick = chair.querySelector('.kick');
+            kick.onclick = (ev) => { 
+              ev.stopPropagation(); 
+              t.guests = t.guests.filter(id => id !== occupiedBy.id);
+              scheduleSave(); 
+              render();
+              showToast(`已将 ${occupiedBy.name} 一行(${occupiedBy.count}人)从 ${t.name} 移除`);
+            };
+            
+            chair.draggable = true; 
+            chair.dataset.guestId = occupiedBy.id; 
+            chair.dataset.tableId = t.id; 
+            attachGuestDrag(chair);
+          }
+        } else {
+          chair.classList.add('empty'); 
+          chair.textContent = '空位';
+        }
+        
         wrap.appendChild(chair);
       }
 
       // 允许把宾客拖拽到整张桌
-      wrap.addEventListener('dragover', e => { e.preventDefault(); });
+      wrap.addEventListener('dragover', e => { 
+        e.preventDefault();
+        wrap.style.backgroundColor = 'rgba(255,255,255,0.05)';
+      });
+      
+      wrap.addEventListener('dragleave', () => {
+        wrap.style.backgroundColor = '';
+      });
+      
       wrap.addEventListener('drop', e => {
         e.preventDefault();
-        const gid = draggingId || e.dataTransfer.getData('text/plain'); if(!gid) return;
-        const from = state.tables.find(tt=>tt.guests.includes(gid));
-        if (from) from.guests = from.guests.filter(id=>id!==gid);
-        if (!t.guests.includes(gid) && t.guests.length < t.capacity) t.guests.push(gid);
-        scheduleSave(); render();
+        wrap.style.backgroundColor = '';
+        
+        const gid = draggingId || e.dataTransfer.getData('text/plain'); 
+        if (!gid) return;
+        
+        // 查找宾客信息
+        const guest = state.guests.find(g => g.id === gid);
+        if (!guest) return;
+        
+        // 检查是否有足够空间容纳这组宾客
+        const occupiedSeats = getTableOccupiedSeats(t.id);
+        if (occupiedSeats + guest.count > t.capacity) {
+          showToast(`${t.name} 空间不足，无法容纳 ${guest.name} 一行(${guest.count}人)`, 'warning');
+          return;
+        }
+        
+        // 从原桌移除
+        const fromTable = state.tables.find(tt => tt.guests.includes(gid));
+        if (fromTable && fromTable.id !== t.id) {
+          fromTable.guests = fromTable.guests.filter(id => id !== gid);
+        }
+        
+        // 添加到新桌
+        if (!t.guests.includes(gid)) {
+          t.guests.push(gid);
+          scheduleSave(); 
+          render();
+          showToast(`已将 ${guest.name} 一行(${guest.count}人)安排到 ${t.name}`);
+        }
       });
 
-      qs('.rename', card).onclick = () => { const name = prompt('桌名：', t.name); if (name && name.trim()){ t.name = name.trim(); scheduleSave(); render(); } };
-      qs('.setcap', card).onclick = () => { const cap = prompt('容量（座位数）：', t.capacity); const n = Number(cap); if (Number.isInteger(n) && n>0){ t.capacity = n; scheduleSave(); render(); } else { alert('请输入大于 0 的整数'); } };
-      qs('.clear', card).onclick = () => { if (confirm(`清空 ${t.name} 的入座？`)){ t.guests = []; scheduleSave(); render(); } };
+      // 桌操作事件
+      qs('.rename', card).onclick = () => {
+        const name = prompt('桌名：', t.name); 
+        if (name && name.trim()) {
+          const validation = validateInput.tableName(name);
+          if (!validation.valid) {
+            showToast(validation.message, 'error');
+            return;
+          }
+          
+          t.name = name.trim(); 
+          scheduleSave(); 
+          render();
+          showToast(`已重命名为 ${t.name}`);
+        } 
+      };
+      
+      qs('.setcap', card).onclick = () => {
+        const cap = prompt('容量（座位数）：', t.capacity); 
+        const n = Number(cap); 
+        
+        const validation = validateInput.capacity(n);
+        if (!validation.valid) {
+          showToast(validation.message, 'error');
+          return;
+        }
+        
+        // 检查新容量是否能容纳当前宾客
+        const occupiedSeats = getTableOccupiedSeats(t.id);
+        let removedGuests = [];
+        
+        if (n < occupiedSeats) {
+          // 容量不足，需要移除宾客
+          let remainingCapacity = n;
+          const newGuests = [];
+          
+          for (const guestId of t.guests) {
+            const guest = state.guests.find(g => g.id === guestId);
+            if (!guest) continue;
+            
+            if (remainingCapacity >= guest.count) {
+              newGuests.push(guestId);
+              remainingCapacity -= guest.count;
+            } else {
+              removedGuests.push(guest);
+            }
+          }
+          
+          t.guests = newGuests;
+        }
+        
+        t.capacity = n; 
+        scheduleSave(); 
+        render();
+        
+        let message = `已设置 ${t.name} 容量为 ${n}`;
+        if (removedGuests.length > 0) {
+          message += `，因容量不足已移除 ${removedGuests.length} 组宾客`;
+        }
+        showToast(message);
+      };
+      
+      qs('.clear', card).onclick = () => {
+        if (confirm(`清空 ${t.name} 的入座？`)) {
+          const count = t.guests.length;
+          const peopleCount = getTableOccupiedSeats(t.id);
+          t.guests = []; 
+          scheduleSave(); 
+          render();
+          showToast(`已清空 ${t.name} 的 ${count} 组宾客（共${peopleCount}人）`);
+        }
+      };
+      
       qs('.table-footer .remove-table', card).onclick = () => {
-        if (confirm(`删除桌子“${t.name}”？`)){ state.tables = state.tables.filter(x=>x.id!==t.id); scheduleSave(); render(); }
+        if (confirm(`删除桌子“${t.name}”？`)) {
+          state.tables = state.tables.filter(x => x.id !== t.id); 
+          scheduleSave(); 
+          render();
+          showToast(`已删除 ${t.name}`);
+        }
       };
 
       el.canvas.appendChild(card);
     }
 
-    // 统计
-    const total = state.guests.length;
-    const seatedCount = state.tables.reduce((a,t)=>a+t.guests.length,0);
-    const unseated = total - seatedCount;
+    // 更新统计信息
+    const totalGroups = state.guests.length;
+    const totalPeople = state.guests.reduce((sum, guest) => sum + guest.count, 0);
+    const seatedPeople = state.tables.reduce((sum, table) => {
+      return sum + table.guests.reduce((tableSum, guestId) => {
+        const guest = state.guests.find(g => g.id === guestId);
+        return tableSum + (guest ? guest.count : 0);
+      }, 0);
+    }, 0);
+    const unseatedPeople = totalPeople - seatedPeople;
     const tableCount = state.tables.length;
-    const fullTables = state.tables.filter(t=>t.guests.length>=t.capacity).length;
+    const fullTables = state.tables.filter(t => getTableOccupiedSeats(t.id) >= t.capacity).length;
+    
+    // 分类统计
+    const categoryStats = {
+      family: 0,
+      friend: 0,
+      colleague: 0,
+      other: 0
+    };
+    
+    state.guests.forEach(guest => {
+      if (categoryStats.hasOwnProperty(guest.category)) {
+        categoryStats[guest.category] += guest.count;
+      }
+    });
+    
     el.stats.innerHTML = `
-      <span class="pill">总人数：${total}</span>
-      <span class="pill">已入座：${seatedCount}</span>
-      <span class="pill">未入座：${unseated}</span>
+      <span class="pill">总组数：${totalGroups}</span>
+      <span class="pill">总人数：${totalPeople}</span>
+      <span class="pill">已入座：${seatedPeople}</span>
+      <span class="pill">未入座：${unseatedPeople}</span>
       <span class="pill">桌数：${tableCount}</span>
-      <span class="pill">满员桌：${fullTables}</span>`;
+      <span class="pill">满员桌：${fullTables}</span>
+      <span class="pill">家人：${categoryStats.family}</span>
+      <span class="pill">朋友：${categoryStats.friend}</span>`;
   }
 
-  function shortName(s){ s = s.replace(/[（(].*?[)）]/g,'').trim(); return s.length<=4 ? s : s.slice(0,4); }
+  // 更新批量操作的桌选择器
+  function updateBatchTableSelect() {
+    el.batchTableSelect.innerHTML = '<option value="">选择目标桌...</option>';
+    
+    state.tables.forEach(table => {
+      const occupiedSeats = getTableOccupiedSeats(table.id);
+      const availableSeats = table.capacity - occupiedSeats;
+      
+      const option = document.createElement('option');
+      option.value = table.id;
+      option.textContent = `${table.name} (${occupiedSeats}/${table.capacity})`;
+      // 已满的桌子禁用选择
+      option.disabled = availableSeats <= 0;
+      el.batchTableSelect.appendChild(option);
+    });
+  }
 
+  // 简化姓名显示
+  function shortName(s) { 
+    s = s.replace(/[（(].*?[)）]/g, '').trim(); 
+    return s.length <= 4 ? s : s.slice(0, 4); 
+  }
+
+  // 拖拽相关
   let draggingId = null;
-  function attachGuestDrag(node){
+  function attachGuestDrag(node) {
     node.addEventListener('dragstart', e => {
       draggingId = node.dataset.guestId;
       node.classList.add('dragging');
       e.dataTransfer.setData('text/plain', draggingId);
       e.dataTransfer.effectAllowed = 'move';
     });
-    node.addEventListener('dragend', () => { draggingId = null; node.classList.remove('dragging'); });
+    
+    node.addEventListener('dragend', () => {
+      draggingId = null; 
+      node.classList.remove('dragging');
+      // 清除所有可能的拖拽样式
+      qsa('.round-wrap').forEach(wrap => {
+        wrap.style.backgroundColor = '';
+      });
+    });
   }
 
-  // 按钮
-  el.addGuestsBtn.onclick = () => {
-    const lines = el.bulkNames.value.split(/\n/).map(s=>s.trim()).filter(Boolean);
-    if (lines.length===0){ alert('请粘贴至少一个姓名'); return; }
-    for (const name of lines){ state.guests.push({ id:uid(), name }); }
-    el.bulkNames.value=''; scheduleSave(); render();
-  };
-  el.clearGuestsBtn.onclick = () => {
-    if (!confirm('仅清空“未入座”列表？（已在桌上的不受影响）')) return;
-    const seated = new Set(state.tables.flatMap(t=>t.guests));
-    state.guests = state.guests.filter(g=>seated.has(g.id)); scheduleSave(); render();
-  };
-  el.addTableBtn.onclick = () => {
-    const name = (el.tableName.value.trim() || `${state.tables.length+1}号桌`);
-    const cap = Number(el.tableCap.value);
-    if (!Number.isInteger(cap) || cap<=0){ alert('容量需为大于 0 的整数'); return; }
-    state.tables.push({ id:uid(), name, capacity:cap, guests:[] });
-    el.tableName.value=''; scheduleSave(); render();
-  };
-  el.autoSeatBtn.onclick = () => {
-    const seated = new Set(state.tables.flatMap(t=>t.guests));
-    const queue = state.guests.filter(g=>!seated.has(g.id));
-    if (queue.length===0){ alert('没有未入座的宾客'); return; }
-    let idx = 0;
-    for (const t of state.tables){
-      while (t.guests.length < t.capacity && idx < queue.length){ t.guests.push(queue[idx].id); idx++; }
-    }
-    scheduleSave(); render();
-  };
-  el.shuffleBtn.onclick = () => {
-    const seated = new Set(state.tables.flatMap(t=>t.guests));
-    const pending = state.guests.filter(g=>!seated.has(g.id));
-    for (let i=pending.length-1; i>0; i--){ const j = Math.floor(Math.random()*(i+1)); [pending[i], pending[j]] = [pending[j], pending[i]]; }
-    const remains = state.guests.filter(g=>seated.has(g.id)); state.guests = remains.concat(pending);
-    scheduleSave(); render();
-  };
-  el.exportBtn.onclick = () => {
-    const data = JSON.stringify(state, null, 2);
-    const blob = new Blob([data], {type:'application/json;charset=utf-8'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `seating-plan-${new Date().toISOString().slice(0,10)}.json`; a.click();
-    URL.revokeObjectURL(a.href);
-  };
-  el.importFile.onchange = (ev) => {
-    const file = ev.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try{
-        const s = JSON.parse(reader.result);
-        if (!s || !Array.isArray(s.guests) || !Array.isArray(s.tables)) throw new Error('格式不正确');
-        state.guests = s.guests; state.tables = s.tables; scheduleSave(); render();
-      }catch(e){ alert('导入失败：' + e.message); }
-      ev.target.value='';
+  // 绑定按钮事件
+  function bindEvents() {
+    // 添加宾客
+    el.addGuestsBtn.onclick = () => {
+      const lines = el.bulkNames.value
+        .split(/\n/)
+        .map(s => s.trim())
+        .filter(Boolean);
+        
+      if (lines.length === 0) {
+        showToast('请粘贴至少一个姓名', 'warning');
+        return;
+      }
+      
+      const category = el.guestCategory.value;
+      let addedCount = 0;
+      
+      for (const line of lines) {
+        // 解析"姓名 数量"格式
+        const { name, count } = parseGuestInput(line);
+        
+        // 验证
+        const nameValidation = validateInput.name(name);
+        if (!nameValidation.valid) {
+          showToast(nameValidation.message + `: ${line}`, 'error');
+          continue;
+        }
+        
+        const countValidation = validateInput.count(count);
+        if (!countValidation.valid) {
+          showToast(countValidation.message + `: ${line}`, 'error');
+          continue;
+        }
+        
+        // 检查是否已存在同名宾客
+        const exists = state.guests.some(g => g.name.trim() === name.trim());
+        if (exists) {
+          showToast(`已存在同名宾客: ${name}`, 'warning');
+          continue;
+        }
+        
+        state.guests.push({ 
+          id: uid(), 
+          name,
+          count,
+          category
+        });
+        addedCount++;
+      }
+      
+      el.bulkNames.value = ''; 
+      scheduleSave(); 
+      render();
+      
+      if (addedCount > 0) {
+        showToast(`已添加 ${addedCount} 组宾客`);
+      }
     };
-    reader.readAsText(file, 'utf-8');
-  };
-  el.printBtn.onclick = () => window.print();
-  el.resetAllBtn.onclick = () => {
-    if (!confirm('重置全部数据？（清空所有桌子与名单）')) return;
-    const s = seed(); state.guests = s.guests; state.tables = s.tables; scheduleSave(); render();
-  };
-  el.search.oninput = () => render();
-  el.shareBtn.onclick = async () => { try{ await navigator.clipboard.writeText(location.href); alert('已复制分享链接'); } catch{ prompt('复制此链接：', location.href); } };
+    
+    // 清空未入座
+    el.clearGuestsBtn.onclick = () => {
+      const seated = new Set(state.tables.flatMap(t => t.guests));
+      const pendingCount = state.guests.filter(g => !seated.has(g.id)).length;
+      const pendingPeopleCount = state.guests
+        .filter(g => !seated.has(g.id))
+        .reduce((sum, guest) => sum + guest.count, 0);
+      
+      if (pendingCount === 0) {
+        showToast('没有未入座的宾客', 'info');
+        return;
+      }
+      
+      if (confirm(`确定要清空所有未入座的 ${pendingCount} 组宾客（共${pendingPeopleCount}人）吗？（已在桌上的不受影响）`)) {
+        state.guests = state.guests.filter(g => seated.has(g.id)); 
+        scheduleSave(); 
+        render();
+        showToast(`已清空 ${pendingCount} 组未入座宾客（共${pendingPeopleCount}人）`);
+      }
+    };
+    
+    // 添加桌子
+    el.addTableBtn.onclick = () => {
+      const name = (el.tableName.value.trim() || `${state.tables.length + 1}号桌`);
+      const cap = Number(el.tableCap.value);
+      
+      const nameValidation = validateInput.tableName(name);
+      if (!nameValidation.valid) {
+        showToast(nameValidation.message, 'error');
+        return;
+      }
+      
+      const capValidation = validateInput.capacity(cap);
+      if (!capValidation.valid) {
+        showToast(capValidation.message, 'error');
+        return;
+      }
+      
+      state.tables.push({ 
+        id: uid(), 
+        name, 
+        capacity: cap, 
+        guests: [] 
+      });
+      
+      el.tableName.value = ''; 
+      scheduleSave(); 
+      render();
+      showToast(`已添加 ${name}`);
+    };
+    
+    // 自动排座
+    el.autoSeatBtn.onclick = () => {
+      const seated = new Set(state.tables.flatMap(t => t.guests));
+      const queue = state.guests.filter(g => !seated.has(g.id));
+      
+      if (queue.length === 0) {
+        showToast('没有未入座的宾客', 'info');
+        return;
+      }
+      
+      // 增强的自动排座逻辑：按分类优先排座
+      // 先按分类分组
+      const categoryGroups = {};
+      queue.forEach(guest => {
+        if (!categoryGroups[guest.category]) {
+          categoryGroups[guest.category] = [];
+        }
+        categoryGroups[guest.category].push(guest);
+      });
+      
+      // 优先排家人，然后是朋友，再是同事，最后是其他
+      const priorityOrder = ['family', 'friend', 'colleague', 'other'];
+      const orderedQueue = [];
+      
+      priorityOrder.forEach(category => {
+        if (categoryGroups[category]) {
+          orderedQueue.push(...categoryGroups[category]);
+        }
+      });
+      
+      // 分配到桌子
+      let guestIndex = 0;
+      for (const t of state.tables) {
+        while (guestIndex < orderedQueue.length) {
+          const guest = orderedQueue[guestIndex];
+          const occupiedSeats = getTableOccupiedSeats(t.id);
+          
+          // 检查是否能容纳当前宾客组
+          if (occupiedSeats + guest.count <= t.capacity) {
+            t.guests.push(guest.id);
+            guestIndex++;
+          } else {
+            // 空间不足，尝试下一桌
+            break;
+          }
+        }
+      }
+      
+      // 检查是否有未分配的宾客
+      const unassigned = orderedQueue.slice(guestIndex);
+      const unassignedGroups = unassigned.length;
+      const unassignedPeople = unassigned.reduce((sum, guest) => sum + guest.count, 0);
+      
+      scheduleSave(); 
+      render();
+      
+      let message = `已自动安排 ${guestIndex} 组宾客入座（共${orderedQueue.slice(0, guestIndex).reduce((sum, g) => sum + g.count, 0)}人）`;
+      if (unassignedGroups > 0) {
+        message += `，尚有 ${unassignedGroups} 组宾客（共${unassignedPeople}人）无法安排（桌子已满）`;
+      }
+      
+      showToast(message);
+    };
+    
+    // 打散未入座
+    el.shuffleBtn.onclick = () => {
+      const seated = new Set(state.tables.flatMap(t => t.guests));
+      const pending = state.guests.filter(g => !seated.has(g.id));
+      
+      if (pending.length <= 1) {
+        showToast('未入座宾客太少，无需打散', 'info');
+        return;
+      }
+      
+      // 随机打乱顺序
+      for (let i = pending.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pending[i], pending[j]] = [pending[j], pending[i]];
+      }
+      
+      // 保持已入座宾客顺序，未入座的打乱
+      const remains = state.guests.filter(g => seated.has(g.id)); 
+      state.guests = remains.concat(pending);
+      
+      scheduleSave(); 
+      render();
+      showToast('已随机打乱未入座宾客顺序');
+    };
+    
+    // 导出
+    el.exportBtn.onclick = () => {
+      try {
+        const data = JSON.stringify(state, null, 2);
+        const blob = new Blob([data], {type: 'application/json;charset=utf-8'});
+        const a = document.createElement('a'); 
+        a.href = URL.createObjectURL(blob);
+        
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.download = `座位规划-${dateStr}.json`; 
+        a.click();
+        URL.revokeObjectURL(a.href);
+        
+        showToast('导出成功');
+      } catch (error) {
+        console.error('导出失败:', error);
+        showToast('导出失败，请重试', 'error');
+      }
+    };
+    
+    // 导入
+    el.importFile.onchange = (ev) => {
+      const file = ev.target.files[0]; 
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const s = JSON.parse(reader.result);
+          
+          if (!s || !Array.isArray(s.guests) || !Array.isArray(s.tables)) {
+            throw new Error('文件格式不正确');
+          }
+          
+          // 验证导入的数据
+          s.guests.forEach((guest, index) => {
+            if (!guest.id || !guest.name || guest.count === undefined) {
+              throw new Error(`宾客数据无效（索引 ${index}）`);
+            }
+          });
+          
+          s.tables.forEach((table, index) => {
+            if (!table.id || !table.name || typeof table.capacity !== 'number' || !Array.isArray(table.guests)) {
+              throw new Error(`桌子数据无效（索引 ${index}）`);
+            }
+          });
+          
+          // 处理分类和数量数据
+          s.guests = s.guests.map(guest => {
+            if (guest.count === undefined) guest.count = 1;
+            if (!guest.category) guest.category = 'other';
+            return guest;
+          });
+          
+          state.guests = s.guests; 
+          state.tables = s.tables; 
+          scheduleSave(); 
+          render();
+          showToast('导入成功');
+        } catch (e) {
+          showToast('导入失败：' + e.message, 'error');
+        }
+        ev.target.value = '';
+      };
+      reader.readAsText(file, 'utf-8');
+    };
+    
+    // 打印
+    el.printBtn.onclick = () => {
+      // 打印前先确保没有冲突
+      const hasConflicts = detectAndFixConflicts();
+      if (hasConflicts) {
+        // 如果有冲突，修复后再打印
+        saveNow().then(() => {
+          window.print();
+        });
+      } else {
+        window.print();
+      }
+    };
+    
+    // 重置全部
+    el.resetAllBtn.onclick = () => {
+      if (confirm('确定要重置全部数据吗？（清空所有桌子与名单，恢复为初始示例数据）')) {
+        const s = seed(); 
+        state.guests = s.guests; 
+        state.tables = s.tables; 
+        scheduleSave(); 
+        render();
+        showToast('已重置全部数据');
+      }
+    };
+    
+    // 搜索
+    el.search.oninput = () => render();
+    
+    // 分享链接
+    el.shareBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        showToast('已复制分享链接');
+      } catch {
+        prompt('请复制此链接：', location.href);
+      }
+    };
+    
+    // 分类筛选
+    qsa('#categoryFilter .category-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        qsa('#categoryFilter .category-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        render();
+      });
+    });
+    
+    // 批量移动
+    el.batchMoveBtn.onclick = () => {
+      const targetTableId = el.batchTableSelect.value;
+      if (!targetTableId) {
+        showToast('请先选择目标桌', 'warning');
+        return;
+      }
+      
+      const targetTable = state.tables.find(t => t.id === targetTableId);
+      if (!targetTable) {
+        showToast('目标桌不存在', 'error');
+        return;
+      }
+      
+      const seated = new Set(state.tables.flatMap(t => t.guests));
+      const pending = state.guests.filter(g => !seated.has(g.id));
+      
+      if (pending.length === 0) {
+        showToast('没有未入座的宾客可移动', 'info');
+        return;
+      }
+      
+      // 计算可移动的宾客组
+      const availableSeats = targetTable.capacity - getTableOccupiedSeats(targetTableId);
+      if (availableSeats <= 0) {
+        showToast('目标桌已坐满', 'error');
+        return;
+      }
+      
+      // 尝试按顺序添加宾客，直到桌子满
+      let remainingSeats = availableSeats;
+      const canMove = [];
+      
+      for (const guest of pending) {
+        if (guest.count <= remainingSeats) {
+          canMove.push(guest);
+          remainingSeats -= guest.count;
+        } else {
+          // 空间不足，无法添加当前宾客组
+          break;
+        }
+      }
+      
+      if (canMove.length === 0) {
+        showToast('目标桌空间不足，无法容纳任何未入座宾客', 'warning');
+        return;
+      }
+      
+      const canMovePeople = canMove.reduce((sum, guest) => sum + guest.count, 0);
+      
+      if (!confirm(`确定要将 ${canMove.length} 组宾客（共${canMovePeople}人）移动到 ${targetTable.name} 吗？`)) {
+        return;
+      }
+      
+      // 执行移动
+      canMove.forEach(guest => {
+        targetTable.guests.push(guest.id);
+      });
+      
+      scheduleSave();
+      render();
+      showToast(`已将 ${canMove.length} 组宾客（共${canMovePeople}人）移动到 ${targetTable.name}`);
+    };
+  }
 
-  function seed(){
+  // 生成初始示例数据
+  function seed() {
+    // 带人数和分类的示例宾客
+    const guests = [
+      { id: uid(), name: '张三', count: 2, category: 'family' },
+      { id: uid(), name: '李四', count: 4, category: 'friend' },
+      { id: uid(), name: '王五', count: 1, category: 'colleague' },
+      { id: uid(), name: '赵六', count: 3, category: 'friend' },
+      { id: uid(), name: '小红', count: 2, category: 'family' },
+      { id: uid(), name: '小明', count: 1, category: 'family' },
+      { id: uid(), name: '小芳', count: 2, category: 'friend' },
+      { id: uid(), name: '陈伟', count: 5, category: 'colleague' },
+      { id: uid(), name: '刘强', count: 1, category: 'colleague' },
+      { id: uid(), name: '周杰', count: 2, category: 'other' }
+    ];
+    
     return {
-      guests: ['张三','李四','王五','赵六','小红','小明','小芳','陈伟','刘强','周杰','唐婉','林娜','何雷','马超','许宁','张雷','宋楠','黄蓉','郭靖','欧阳','乔峰','段誉','虚竹','慕容','令狐冲','岳灵珊'].map(n=>({ id:uid(), name:n })),
+      guests,
       tables: [
-        { id:uid(), name:'1号桌', capacity:8, guests:[] },
-        { id:uid(), name:'2号桌', capacity:8, guests:[] },
-        { id:uid(), name:'3号桌', capacity:8, guests:[] },
-        { id:uid(), name:'亲友桌A', capacity:10, guests:[] }
+        { id: uid(), name: '1号桌', capacity: 8, guests: [] },
+        { id: uid(), name: '2号桌', capacity: 8, guests: [] },
+        { id: uid(), name: '3号桌', capacity: 10, guests: [] },
+        { id: uid(), name: '亲友桌A', capacity: 12, guests: [] }
       ]
     };
   }
 
+  // 初始化应用
   (async () => {
-    // 确保有 plan
-    await ensurePlan();
-    // 加载状态并渲染
-    await loadPlan();
-    // 订阅实时更新
-    subscribeRealtime();
+    try {
+      // 绑定事件
+      bindEvents();
+      
+      // 确保有计划
+      await ensurePlan();
+      
+      // 加载状态并渲染
+      await loadPlan();
+      
+      // 订阅实时更新
+      subscribeRealtime();
+    } catch (error) {
+      console.error('初始化失败:', error);
+      showToast('应用初始化失败，请刷新页面重试', 'error');
+    }
   })();
 })();
 </script>
