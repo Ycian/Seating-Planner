@@ -103,418 +103,8 @@
     white-space:nowrap; 
     display:flex;
     align-items:center;
-    justify-content:center;
-    gap:6px;
   }
-  .btn:hover{filter:brightness(1.05)} 
-  .btn:active{transform:translateY(1px)} 
-  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none}
-  .btn.warn{background:linear-gradient(135deg,#ff8a8a,#ff6b6b)}
-  .btn.loading {
-    position: relative;
-    pointer-events: none;
-    opacity: 0.8;
-  }
-  .btn.loading::after {
-    content: "";
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  /* 改进的宾客列表样式 */
-  .guest-list-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    min-height: 0;
-  }
-  .guest-list {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    border: 1px dashed var(--border);
-    border-radius: 12px;
-    background:rgba(0,0,0,.12);
-    /* 确保滚动条美观 */
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) transparent;
-  }
-  .guest-list::-webkit-scrollbar {
-    width: 6px;
-  }
-  .guest-list::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .guest-list::-webkit-scrollbar-thumb {
-    background-color: var(--accent);
-    border-radius: 3px;
-  }
-  
-  .guest{
-    user-select:none; 
-    display:flex; 
-    align-items:center; 
-    gap:8px; 
-    padding:8px 10px; 
-    border-radius:10px; 
-    background:var(--chip); 
-    border:1px solid var(--border);
-    transition:all 0.2s;
-  }
-  .guest:hover {
-    border-color: rgba(255,255,255,0.2);
-  }
-  .guest.dragging{opacity:.6; transform:scale(0.98)} 
-  .guest .tag{font-size:12px; color:var(--muted); margin-left:auto}
-  .guest .count {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.1);
-    margin-right: 4px;
-  }
-  .guest .category {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-    margin-right: 4px;
-  }
-  /* 分类标签颜色 */
-  .category.family { background-color: rgba(76, 217, 100, 0.2); color: var(--family); }
-  .category.friend { background-color: rgba(255, 204, 0, 0.2); color: var(--friend); }
-  .category.colleague { background-color: rgba(106, 167, 255, 0.2); color: var(--colleague); }
-  .category.other { background-color: rgba(159, 123, 255, 0.2); color: var(--other); }
-  
-  .search{ 
-    padding:8px 10px; 
-    border-radius:10px; 
-    border:1px solid var(--border); 
-    background:#0f1330; 
-    color:var(--text);
-    transition:border-color 0.2s;
-    width: 100%;
-  }
-  .search:focus {
-    border-color: var(--accent);
-  }
-  .main{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px}
-  .toolbar{ 
-    background:var(--panel); 
-    border:1px solid var(--border); 
-    border-radius:16px; 
-    padding:10px; 
-    display:flex; 
-    gap:8px; 
-    flex-wrap:wrap; 
-    align-items:center 
-  }
-  .stats{ 
-    display:flex; 
-    align-items:center; 
-    gap:10px; 
-    flex-wrap:wrap; 
-    margin-left:auto 
-  }
-  .pill{ 
-    padding:8px 10px; 
-    border-radius:999px; 
-    background:var(--chip); 
-    border:1px solid var(--border); 
-    color:var(--text) 
-  }
-  .pill.highlight {
-    background: linear-gradient(135deg, rgba(106, 167, 255, 0.2), rgba(159, 123, 255, 0.2));
-    border-color: var(--accent);
-  }
-  .canvas{ 
-    flex:1; 
-    overflow:auto; 
-    padding:12px; 
-    display:grid; 
-    grid-template-columns: repeat(var(--cols), minmax(260px,1fr)); 
-    gap:12px 
-  }
-  .table-card{ 
-    background:var(--card); 
-    border:1px solid var(--border); 
-    border-radius:16px; 
-    padding:12px; 
-    display:flex; 
-    flex-direction:column; 
-    gap:10px;
-    transition:all 0.2s;
-  }
-  .table-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
-  .table-card.has-conflict {
-    background: var(--conflict-highlight);
-    border-color: var(--error);
-    animation: pulse 2s infinite;
-  }
-  
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
-    70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
-  }
-  
-  .table-header{ display:flex; align-items:center; gap:10px }
-  .badge{ 
-    font-weight:600; 
-    padding:6px 10px; 
-    border-radius:999px; 
-    background:linear-gradient(135deg,#27305d,#1f2550); 
-    border:1px solid var(--border) 
-  }
-  .capacity{ margin-left:auto; font-size:12px; color:var(--muted) }
-  .table-visual{ display:flex; align-items:center; justify-content:center; padding:10px 0 6px }
-  .round-wrap{ position:relative; width:220px; height:220px; margin:auto }
-  .round{ 
-    position:absolute; 
-    left:50%; 
-    top:50%; 
-    transform:translate(-50%,-50%); 
-    width:120px; 
-    height:120px; 
-    border-radius:50%; 
-    background:#2a2f68; 
-    border:2px solid var(--border); 
-    box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); 
-    display:flex; 
-    align-items:center; 
-    justify-content:center; 
-    color:#cfe3ff; 
-    font-weight:600 
-  }
-  .chair{ 
-    position:absolute; 
-    width:64px; 
-    height:28px; 
-    border-radius:14px; 
-    background:#222861; 
-    border:1px solid var(--border); 
-    display:flex; 
-    align-items:center; 
-    justify-content:center; 
-    padding:0 6px; 
-    white-space:nowrap; 
-    overflow:hidden; 
-    text-overflow:ellipsis;
-    transition:all 0.2s;
-  }
-  .chair:hover {
-    transform: scale(1.05);
-    z-index: 10;
-  }
-  .chair.empty{ opacity:.45; font-size:12px; color:var(--muted) }
-  .chair.conflict {
-    background: rgba(255, 59, 48, 0.3);
-    border-color: var(--error);
-    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-  }
-  
-  @keyframes shake {
-    10%, 90% { transform: translateX(-1px) scale(1.05); }
-    20%, 80% { transform: translateX(2px) scale(1.05); }
-    30%, 50%, 70% { transform: translateX(-3px) scale(1.05); }
-    40%, 60% { transform: translateX(3px) scale(1.05); }
-  }
-  
-  .chair .count {
-    font-size: 10px;
-    margin-left: 4px;
-    color: rgba(255, 255, 255, 0.7);
-  }
-  .chair .kick{ 
-    margin-left:6px; 
-    text-decoration:underline; 
-    cursor:pointer; 
-    color:#f8b4b4; 
-    font-size:12px;
-    opacity:0.7;
-    transition:opacity 0.2s;
-  }
-  .chair:hover .kick {
-    opacity:1;
-  }
-  .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
-  .spacer{flex:1} 
-  .link{
-    color:var(--accent); 
-    cursor:pointer; 
-    text-decoration:underline; 
-    font-size:12px;
-    transition:color 0.2s;
-  }
-  .link:hover {
-    color: var(--accent-2);
-  }
-  .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap } 
-  .grid-controls input[type="range"]{ width:160px }
-  
-  /* 提示消息样式 */
-  .toast-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .toast {
-    padding: 12px 16px;
-    border-radius: 8px;
-    color: white;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    animation: toastIn 0.3s ease forwards, toastOut 0.3s ease 2.7s forwards;
-    max-width: 300px;
-  }
-  .toast.success { background-color: var(--success); }
-  .toast.error { background-color: var(--error); }
-  .toast.warning { background-color: var(--warning); color: #333; }
-  .toast.info { background-color: var(--accent); }
-  
-  @keyframes toastIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes toastOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-  }
-  
-  /* 宾客分类选择器 - 增强样式 */
-  .category-selector {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-    padding: 6px;
-    background: rgba(0,0,0,0.1);
-    border-radius: 8px;
-  }
-  .category-btn {
-    padding: 5px 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    background: var(--chip);
-    border: 1px solid var(--border);
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .category-btn::before {
-    content: '●';
-    font-size: 8px;
-  }
-  .category-btn.family::before { color: var(--family); }
-  .category-btn.friend::before { color: var(--friend); }
-  .category-btn.colleague::before { color: var(--colleague); }
-  .category-btn.other::before { color: var(--other); }
-  .category-btn:hover {
-    background: rgba(255,255,255,0.15);
-    transform: translateY(-1px);
-  }
-  .category-btn.active {
-    background: rgba(106, 167, 255, 0.2);
-    border-color: var(--accent);
-    color: var(--accent);
-    font-weight: 500;
-  }
-  
-  /* 批量操作菜单 */
-  .batch-actions {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed var(--border);
-  }
-  
-  /* 筛选结果提示 */
-  .filter-result {
-    font-size: 12px;
-    color: var(--muted);
-    margin: 4px 0 8px 0;
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: rgba(0,0,0,0.1);
-    display: flex;
-    justify-content: space-between;
-  }
-  
-  /* 导入预览 */
-  .import-preview {
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px;
-    margin: 8px 0;
-    background: rgba(0,0,0,0.1);
-  }
-  .import-preview-item {
-    padding: 4px 0;
-    border-bottom: 1px dashed var(--border);
-    font-size: 12px;
-  }
-  .import-preview-item:last-child {
-    border-bottom: none;
-  }
-  .import-preview .error {
-    color: var(--error);
-  }
-  
-  /* 冲突解决对话框 */
-  .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-  .modal-backdrop.active {
-    opacity: 1;
-    pointer-events: all;
-  }
-  .modal {
-    background: var(--panel);
-    border-radius: 16px;
-    width: 90%;
-    max-width: 500px;
-    padding: 20px;
-    border: 1px solid var(--border);
-    transform: translateY(20px);
-    transition: transform 0.3s ease;
-  }
+
   .modal-backdrop.active .modal {
     transform: translateY(0);
   }
@@ -532,17 +122,17 @@
     color: var(--muted);
   }
   .conflict-item {
-    background: var(--card);
+    background: var(--conflict-highlight);
+    border: 1px solid var(--error);
     border-radius: 8px;
-    padding: 10px;
-    margin: 10px 0;
-    border: 1px solid var(--border);
+    padding: 12px;
+    margin: 8px 0;
   }
   .conflict-item.theirs {
-    border-left: 3px solid var(--accent);
+    border-left: 4px solid var(--accent);
   }
   .conflict-item.mine {
-    border-left: 3px solid var(--success);
+    border-left: 4px solid var(--success);
   }
   .modal-buttons {
     display: flex;
@@ -628,7 +218,8 @@
       color: black;
     }
     .chair.empty {
-      display: none;
+      display: flex;
+      opacity: 0.6;
     }
     .table-footer {
       display: none;
@@ -651,25 +242,24 @@
       grid-template-columns:repeat(1, minmax(260px,1fr))
     } 
   }
-  
-  /* 确保宾客列表容器有足够高度和可见性 */
-#guestList {
-  min-height: 300px; /* 最小高度，确保至少显示这么大区域 */
-  height: auto; /* 自动适应内容高度 */
-  overflow-y: auto; /* 内容过多时显示滚动条 */
-  padding: 10px;
-  border: 1px solid #ddd; /* 临时添加边框，方便观察位置 */
-  background: #fff; /* 确保背景不透明，避免被覆盖 */
-  z-index: 10; /* 提高层级，避免被其他元素遮挡 */
-}
 
-/* 调整父容器布局，避免挤压 */
-.guest-management {
-  display: flex;
-  flex-direction: column;
-  gap: 10px; /* 元素间留出间隙 */
-  margin: 20px 0; /* 上下留出外边距 */
-}
+  @media (max-width: 600px) {
+    .canvas {
+      grid-template-columns: 1fr;
+      padding: 8px;
+    }
+    .table-card {
+      padding: 8px;
+    }
+    .round-wrap {
+      width: 180px;
+      height: 180px;
+    }
+    .round {
+      width: 100px;
+      height: 100px;
+    }
+  }
 </style>
 </head>
 <body>
@@ -683,175 +273,8 @@
   </div>
   
   <!-- 冲突解决对话框 -->
-  <div class="modal-backdrop" id="conflictModal">
-    <div class="modal">
-      <h2><i class="fas fa-exclamation-triangle"></i> 检测到数据冲突</h2>
-      <p>其他人也修改了这份座位表，您需要选择如何处理：</p>
-      
-      <div id="conflictDetails">
-        <!-- 冲突详情将在这里动态生成 -->
-      </div>
-      
-      <div class="modal-buttons">
-        <button class="btn ghost" id="keepMineBtn">保留我的更改</button>
-        <button class="btn ghost" id="takeTheirsBtn">采用他人更改</button>
-        <button class="btn" id="mergeChangesBtn">合并更改</button>
-      </div>
-    </div>
-  </div>
 
-  <aside class="sidebar">
-    <!-- 宾客管理区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-users"></i> 宾客管理</h1>
-      <input id="search" class="search" type="text" placeholder="搜索姓名…" />
-      
-      <!-- 宾客分类筛选 - 增强版 -->
-      <div class="category-selector" id="categoryFilter">
-        <div class="category-btn active" data-category="all">全部</div>
-        <div class="category-btn family" data-category="family">家人</div>
-        <div class="category-btn friend" data-category="friend">朋友</div>
-        <div class="category-btn colleague" data-category="colleague">同事</div>
-        <div class="category-btn other" data-category="other">其他</div>
-      </div>
-      
-      <!-- 筛选结果提示 -->
-      <div class="filter-result" id="filterResult">
-        <span>显示全部未入座宾客</span>
-        <span id="filterCount">0人</span>
-      </div>
-      
-      <textarea id="bulkNames" rows="4" placeholder="批量粘贴姓名：每行一个；可带人数，如“张三 2”表示张三一行共2人；可带备注，如“李四 4（同事）”"></textarea>
-      
-      <!-- 宾客分类选择 -->
-      <div>
-        <label style="font-size:12px; color:var(--muted); margin-bottom:4px; display:block;">添加为：</label>
-        <select id="guestCategory" style="width:100%; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
-          <option value="family">家人</option>
-          <option value="friend">朋友</option>
-          <option value="colleague">同事</option>
-          <option value="other">其他</option>
-        </select>
-      </div>
-      
-      <div class="row">
-        <button class="btn" id="addGuestsBtn">
-          <i class="fas fa-user-plus"></i> 添加到名单
-        </button>
-        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">
-          <i class="fas fa-trash"></i> 清空
-        </button>
-      </div>
-    </div>
-    
-    <!-- 桌位管理区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-utensils"></i> 桌位管理</h1>
-      <div class="row">
-        <input id="tableName" type="text" placeholder="桌名（如：1号桌）">
-        <input id="tableCap" type="number" min="1" value="10" title="座位数">
-        <button class="btn" id="addTableBtn">
-          <i class="fas fa-plus-square"></i> 新增
-        </button>
-      </div>
-      
-      <div class="row">
-        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">
-          <i class="fas fa-magic"></i> 自动排座
-        </button>
-        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">
-          <i class="fas fa-random"></i> 打散
-        </button>
-      </div>
-      
-      <!-- 自动排座高级选项 -->
-      <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.1); border-radius:8px;">
-        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">自动排座选项：</label>
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-          <input type="checkbox" id="groupByCategory" checked>
-          <label for="groupByCategory" style="font-size:12px;">按类别分组</label>
-        </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" id="optimizeSeating">
-          <label for="optimizeSeating" style="font-size:12px;">优化座位利用率</label>
-        </div>
-      </div>
-    </div>
-    
-    <!-- 批量操作区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-layer-group"></i> 批量操作</h1>
-      <div class="row">
-        <select id="batchTableSelect" style="flex:1; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
-          <option value="">选择目标桌...</option>
-        </select>
-        <button class="btn ghost" id="batchMoveBtn" title="将所有未入座宾客移动到所选桌">
-          <i class="fas fa-arrow-right"></i> 移动全部
-        </button>
-      </div>
-    </div>
-    
-    <!-- 数据管理区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-database"></i> 数据管理</h1>
-      <div class="row">
-        <button class="btn ghost" id="exportBtn">
-          <i class="fas fa-download"></i> 导出
-        </button>
-        <select id="exportFormat" style="padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
-          <option value="json">JSON</option>
-          <option value="csv">CSV</option>
-        </select>
-      </div>
-      
-      <div style="margin-top:8px;">
-        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">导入：</label>
-        <input id="importFile" type="file" accept=".json,.csv">
-        <div id="importPreview" class="import-preview" style="display:none;"></div>
-        <button class="btn ghost" id="confirmImportBtn" style="margin-top:8px; display:none;">确认导入</button>
-      </div>
-      
-      <div class="row" style="margin-top:8px;">
-        <button class="btn ghost" id="printBtn">
-          <i class="fas fa-print"></i> 打印
-        </button>
-        <button class="btn warn" id="resetAllBtn">
-          <i class="fas fa-exclamation-triangle"></i> 重置全部
-        </button>
-      </div>
-    </div>
-    
-    <!-- 统计图表 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-chart-pie"></i> 统计分析</h1>
-      <div class="stats-chart-container">
-        <canvas id="seatingChart"></canvas>
-      </div>
-      <div style="font-size:12px; color:var(--muted); text-align:center; margin-top:4px;">
-        宾客分类与入座情况
-      </div>
-    </div>
-
-    <!-- 未入座宾客列表区域 - 占据剩余空间 -->
-    <div class="sidebar-section guest-list-container">
-      <h1><i class="fas fa-list"></i> 未入座宾客</h1>
-      <div id="guestList" class="guest-list" aria-label="未入座列表"></div>
-    </div>
-  </aside>
-
-  <main class="main">
-    <div class="toolbar">
-      <div class="pill highlight">实时协作：把下面的分享链接发给同事/亲友，大家看到的是同一份座位表。</div>
-      <div class="stats" id="stats"></div>
-    </div>
-
-    <div class="toolbar" style="gap:10px">
-      <div class="grid-controls">
-        <span>每排桌数：</span>
-        <input id="colsRange" type="range" min="1" max="8" step="1" value="3">
-        <input id="colsNumber" type="number" min="1" max="8" step="1" value="3" style="width:64px">
-      </div>
-      <button class="btn" id="shareBtn">
+      <button class="btn" id="shareBtn" role="button" aria-label="复制当前座位规划的分享链接">
         <i class="fas fa-share-alt"></i> 复制分享链接
       </button>
       <span class="pill">链接：<span id="shareTip" style="opacity:.85"></span></span>
