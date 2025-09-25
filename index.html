@@ -651,6 +651,25 @@
       grid-template-columns:repeat(1, minmax(260px,1fr))
     } 
   }
+  
+  /* 确保宾客列表容器有足够高度和可见性 */
+#guestList {
+  min-height: 300px; /* 最小高度，确保至少显示这么大区域 */
+  height: auto; /* 自动适应内容高度 */
+  overflow-y: auto; /* 内容过多时显示滚动条 */
+  padding: 10px;
+  border: 1px solid #ddd; /* 临时添加边框，方便观察位置 */
+  background: #fff; /* 确保背景不透明，避免被覆盖 */
+  z-index: 10; /* 提高层级，避免被其他元素遮挡 */
+}
+
+/* 调整父容器布局，避免挤压 */
+.guest-management {
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* 元素间留出间隙 */
+  margin: 20px 0; /* 上下留出外边距 */
+}
 </style>
 </head>
 <body>
