@@ -786,5 +786,20 @@
 
   <!-- 引入外部JavaScript -->
   <script src="Seating-Plan.js"></script>
+  <script>
+      // 折叠/展开次要功能
+      document.getElementById('collapseBtn').addEventListener('click', function() {
+      const secondary = document.getElementById('secondaryFunctions');
+      const icon = this.querySelector('i');
+      
+      if (secondary.classList.contains('hidden')) {
+        secondary.classList.remove('hidden');
+        icon.classList.replace('fa-chevron-left', 'fa-chevron-down');
+      } else {
+        secondary.classList.add('hidden');
+        icon.classList.replace('fa-chevron-down', 'fa-chevron-left');
+      }
+    });
+  </script>
 </body>
 </html>
