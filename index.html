@@ -651,9 +651,11 @@
       grid-template-columns:repeat(1, minmax(260px,1fr))
     } 
   }
+
+  /* 左侧工具栏优化样式 */
   .toolbar-header {
     background: var(--card);
-    border-bottom-color: var(--border);
+    border-bottom: 1px solid var(--border);
   }
   .core-functions .btn {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -661,10 +663,14 @@
   .core-functions .btn:nth-child(2) {
     background: var(--chip);
     color: var(--text);
+    border: 1px solid var(--border);
   }
   .unseated-guests {
     background: var(--card);
-    border-top-color: var(--border);
+    border-top: 1px solid var(--border);
+  }
+  .guests-list {
+    background: rgba(0,0,0,0.1);
   }
   .guest-item {
     background: var(--chip);
@@ -675,11 +681,15 @@
   }
   .secondary-functions {
     background: var(--card);
-    border-top-color: var(--border);
+    border-top: 1px solid var(--border);
   }
   .secondary-functions button {
     color: var(--muted);
     background: var(--chip);
+    border: 1px solid var(--border);
+  }
+  .secondary-functions button:hover {
+    background: rgba(255,255,255,0.1);
   }
 </style>
 </head>
@@ -711,84 +721,103 @@
     </div>
   </div>
 
-<aside class="sidebar">
   <!-- 简化后的左侧工具栏 -->
-  <div class="toolbar-header p-4 border-b flex justify-between items-center">
-    <h3 class="font-semibold">宾客管理</h3>
-    <button id="collapseBtn" class="p-1 hover:bg-gray-100 rounded">
-      <i class="fa fa-chevron-left"></i>
-    </button>
-  </div>
-
-  <!-- 核心功能区（默认显示） -->
-  <div class="core-functions p-3">
-    <button class="w-full p-2 mb-2 bg-blue-500 text-white rounded flex items-center">
-      <i class="fa fa-user-plus mr-2"></i>新增宾客
-    </button>
-    <button class="w-full p-2 mb-2 bg-gray-100 hover:bg-gray-200 rounded flex items-center">
-      <i class="fa fa-search mr-2"></i>搜索
-    </button>
-  </div>
-
-  <!-- 未入座宾客区域（优化显示） -->
-  <div class="unseated-guests p-3 border-t">
-    <h4 class="text-sm font-medium mb-2 flex justify-between">
-      未入座宾客
-      <span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">5人</span>
-    </h4>
-    <div class="guests-list max-h-60 overflow-y-auto text-sm">
-      <!-- 宾客列表项 -->
-      <div class="guest-item p-2 mb-1 hover:bg-gray-50 rounded flex justify-between">
-        <span>张三</span>
-        <button class="text-xs text-blue-500">安排入座</button>
-      </div>
-      <div class="guest-item p-2 mb-1 hover:bg-gray-50 rounded flex justify-between">
-        <span>李四</span>
-        <button class="text-xs text-blue-500">安排入座</button>
-      </div>
-      <!-- 更多宾客项 -->
-    </div>
-  </div>
-
-  <!-- 次要功能区（可折叠） -->
-  <div id="secondaryFunctions" class="secondary-functions p-3 border-t hidden">
-    <button class="w-full p-2 mb-2 text-gray-600 hover:bg-gray-100 rounded flex items-center">
-      <i class="fa fa-cog mr-2"></i>设置
-    </button>
-    <button class="w-full p-2 mb-2 text-gray-600 hover:bg-gray-100 rounded flex items-center">
-      <i class="fa fa-history mr-2"></i>历史记录
-    </button>
-  </div>
-</aside>
-
-  <main class="main">
-    <div class="toolbar">
-      <div class="pill highlight">实时协作：把下面的分享链接发给同事/亲友，大家看到的是同一份座位表。</div>
-      <div class="stats" id="stats"></div>
-    </div>
-
-    <div class="toolbar" style="gap:10px">
-      <div class="grid-controls">
-        <span>每排桌数：</span>
-        <input id="colsRange" type="range" min="1" max="8" step="1" value="3">
-        <input id="colsNumber" type="number" min="1" max="8" step="1" value="3" style="width:64px">
-      </div>
-      <button class="btn" id="shareBtn">
-        <i class="fas fa-share-alt"></i> 复制分享链接
+  <aside class="sidebar">
+    <!-- 工具栏标题与折叠按钮 -->
+    <div class="toolbar-header p-4 border-b flex justify-between items-center">
+      <h3 class="font-semibold">宾客管理</h3>
+      <button id="collapseBtn" class="p-1 hover:bg-gray-100 rounded">
+        <i class="fa fa-chevron-left"></i>
       </button>
-      <span class="pill">链接：<span id="shareTip" style="opacity:.85"></span></span>
-      <span class="pill">计划ID：<code id="planIdLabel"></code></span>
-      <span class="pill" id="onlineUsers">在线：0人</span>
     </div>
 
-    <div id="canvas" class="canvas" aria-label="桌面画布"></div>
-  </main>
+    <!-- 核心功能区（默认显示） -->
+    <div class="core-functions p-3">
+      <button class="w-full p-2 mb-2 bg-blue-500 text-white rounded flex items-center">
+        <i class="fa fa-user-plus mr-2"></i>新增宾客
+      </button>
+      <button class="w-full p-2 mb-2 bg-gray-100 hover:bg-gray-200 rounded flex items-center">
+        <i class="fa fa-search mr-2"></i>搜索
+      </button>
+    </div>
 
-  <!-- 引入外部JavaScript -->
-  <script src="Seating-Plan.js"></script>
+    <!-- 未入座宾客区域（优化显示） -->
+    <div class="unseated-guests p-3 border-t">
+      <h4 class="text-sm font-medium mb-2 flex justify-between">
+        未入座宾客
+        <span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">5人</span>
+      </h4>
+      <div class="guests-list max-h-60 overflow-y-auto text-sm">
+        <!-- 宾客列表项 -->
+        <div class="guest-item p-2 mb-1 hover:bg-gray-50 rounded flex justify-between">
+          <span>张三</span>
+          <button class="text-xs text-blue-500">安排入座</button>
+        </div>
+        <div class="guest-item p-2 mb-1 hover:bg-gray-50 rounded flex justify-between">
+          <span>李四</span>
+          <button class="text-xs text-blue-500">安排入座</button>
+        </div>
+        <!-- 更多宾客项 -->
+      </div>
+    </div>
+
+    <!-- 次要功能区（可折叠） -->
+    <div id="secondaryFunctions" class="secondary-functions p-3 border-t hidden">
+      <button class="w-full p-2 mb-2 text-gray-600 hover:bg-gray-100 rounded flex items-center">
+        <i class="fa fa-cog mr-2"></i>设置
+      </button>
+      <button class="w-full p-2 mb-2 text-gray-600 hover:bg-gray-100 rounded flex items-center">
+        <i class="fa fa-history mr-2"></i>历史记录
+      </button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <!-- 顶部工具栏 -->
+    <div class="toolbar">
+      <button class="btn" id="saveBtn">
+        <i class="fas fa-save"></i> 保存
+      </button>
+      <button class="btn" id="shareBtn">
+        <i class="fas fa-share-alt"></i> 分享
+      </button>
+      <button class="btn ghost" id="exportBtn">
+        <i class="fas fa-download"></i> 导出
+      </button>
+      <button class="btn ghost" id="printBtn">
+        <i class="fas fa-print"></i> 打印
+      </button>
+      
+      <div class="spacer"></div>
+      
+      <div class="grid-controls">
+        <span>列数:</span>
+        <input type="range" id="columnRange" min="1" max="6" value="3">
+        <span id="columnValue">3</span>
+      </div>
+      
+      <div class="stats">
+        <div class="pill">
+          <i class="fas fa-users"></i> 总宾客: <span id="totalGuests">0</span>
+        </div>
+        <div class="pill">
+          <i class="fas fa-utensils"></i> 桌位: <span id="totalTables">0</span>
+        </div>
+        <div class="pill highlight" id="unseatedPill">
+          <i class="fas fa-exclamation-circle"></i> 未入座: <span id="unseatedCount">0</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 桌位展示区域 -->
+    <div class="canvas" id="tablesContainer">
+      <!-- 桌位卡片将在这里动态生成 -->
+    </div>
+  </div>
+
   <script>
-      // 折叠/展开次要功能
-      document.getElementById('collapseBtn').addEventListener('click', function() {
+    // 折叠/展开次要功能
+    document.getElementById('collapseBtn').addEventListener('click', function() {
       const secondary = document.getElementById('secondaryFunctions');
       const icon = this.querySelector('i');
       
@@ -800,6 +829,9 @@
         icon.classList.replace('fa-chevron-down', 'fa-chevron-left');
       }
     });
+
+    // 其他原有脚本逻辑（根据实际需求补充）
+    // ...
   </script>
 </body>
 </html>
