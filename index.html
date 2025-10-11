@@ -1,2634 +1,1810 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>宾客座位规划系统（支持占位桌）</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-<style>
-  :root{ 
-    --bg:#0f1220; 
-    --panel:#171b2c; 
-    --accent:#6aa7ff; 
-    --accent-2:#9f7bff; 
-    --text:#e7ecff; 
-    --muted:#9aa4c7; 
-    --card:#1c2140; 
-    --chip:#242a52; 
-    --border:rgba(255,255,255,.08); 
-    --cols:3; 
-    --success:#4cd964;
-    --warning:#ffcc00;
-    --error:#ff3b30;
-    --conflict-highlight: rgba(255, 59, 48, 0.15);
-    /* 分类颜色 */
-    --family:#4cd964;
-    --friend:#ffcc00;
-    --colleague:#6aa7ff;
-    --other:#9f7bff;
-  }
-  *{box-sizing:border-box} 
-  html,body{height:100%}
-  body{ 
-    margin:0; 
-    background: radial-gradient(1200px 600px at 20% -10%, #1a2040 0, #0f1220 70%), var(--bg); 
-    color:var(--text); 
-    font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; 
-    display:flex; 
-    gap:12px; 
-    padding:12px; 
-    overflow:hidden; 
-  }
-  .sidebar{ 
-    width:320px; 
-    min-width:260px; 
-    max-width:380px; 
-    background:var(--panel); 
-    border:1px solid var(--border); 
-    border-radius:16px; 
-    padding:14px; 
-    display:flex; 
-    flex-direction:column; 
-    gap:14px; 
-    overflow:hidden;
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宾客座位规划系统</title>
+  <!-- 引入外部资源 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/supabase@2.31.0/dist/umd/supabase.min.js"></script>
   
-  /* 功能卡片样式 */
-  .sidebar-section {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 12px;
-    border: 1px solid var(--border);
-    transition: all 0.2s;
-  }
-  
-  .sidebar-section:hover {
-    border-color: rgba(255,255,255,0.15);
-  }
-  
-  h1{font-size:16px; margin:0 0 8px 0; letter-spacing:.5px; display:flex; align-items:center; gap:6px}
-  h1 i {color: var(--accent);}
-  
-  .controls input[type="text"], 
-  .controls input[type="number"], 
-  textarea, 
-  input[type="file"]{ 
-    width:100%; 
-    padding:10px 12px; 
-    border-radius:10px; 
-    border:1px solid var(--border); 
-    background:#0f1330; 
-    color:var(--text); 
-    outline:none; 
-    transition:border-color 0.2s;
-  }
-  .controls input:focus, textarea:focus {
-    border-color: var(--accent);
-  }
-  .row{display:flex; gap:8px; flex-wrap:wrap}
-  .btn{ 
-    appearance:none; 
-    border:none; 
-    cursor:pointer; 
-    padding:10px 12px; 
-    border-radius:10px; 
-    color:white; 
-    background:linear-gradient(135deg,var(--accent),var(--accent-2)); 
-    box-shadow:0 6px 20px rgba(106,167,255,.25); 
-    transition:.15s transform ease,.15s filter ease,.15s opacity ease; 
-    white-space:nowrap; 
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-  }
-  .btn:hover{filter:brightness(1.05)} 
-  .btn:active{transform:translateY(1px)} 
-  .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none}
-  .btn.warn{background:linear-gradient(135deg,#ff8a8a,#ff6b6b)}
-  .btn.loading {
-    position: relative;
-    pointer-events: none;
-    opacity: 0.8;
-  }
-  .btn.loading::after {
-    content: "";
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-  }
-  
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  /* 宾客列表样式 */
-  .guest-list-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .guest-list {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    border: 1px dashed var(--border);
-    border-radius: 12px;
-    background:rgba(0,0,0,.12);
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) transparent;
-  }
-  .guest-list::-webkit-scrollbar {
-    width: 6px;
-  }
-  .guest-list::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .guest-list::-webkit-scrollbar-thumb {
-    background-color: var(--accent);
-    border-radius: 3px;
-  }
-  
-  .guest{
-    user-select:none; 
-    display:flex; 
-    align-items:center; 
-    gap:8px; 
-    padding:8px 10px; 
-    border-radius:10px; 
-    background:var(--chip); 
-    border:1px solid var(--border);
-    transition:all 0.2s;
-  }
-  .guest:hover {
-    border-color: rgba(255,255,255,0.2);
-  }
-  .guest.dragging{opacity:.6; transform:scale(0.98)} 
-  .guest .tag{font-size:12px; color:var(--muted); margin-left:auto}
-  .guest .count {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.1);
-    margin-right: 4px;
-  }
-  .guest .category {
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-    margin-right: 4px;
-  }
-  /* 分类标签颜色 */
-  .category.family { background-color: rgba(76, 217, 100, 0.2); color: var(--family); }
-  .category.friend { background-color: rgba(255, 204, 0, 0.2); color: var(--friend); }
-  .category.colleague { background-color: rgba(106, 167, 255, 0.2); color: var(--colleague); }
-  .category.other { background-color: rgba(159, 123, 255, 0.2); color: var(--other); }
-  
-  .search{ 
-    padding:8px 10px; 
-    border-radius:10px; 
-    border:1px solid var(--border); 
-    background:#0f1330; 
-    color:var(--text);
-    transition:border-color 0.2s;
-    width: 100%;
-  }
-  .search:focus {
-    border-color: var(--accent);
-  }
-  .main{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px}
-  .toolbar{ 
-    background:var(--panel); 
-    border:1px solid var(--border); 
-    border-radius:16px; 
-    padding:10px; 
-    display:flex; 
-    gap:8px; 
-    flex-wrap:wrap; 
-    align-items:center 
-  }
-  .pill{ 
-    padding:8px 10px; 
-    border-radius:999px; 
-    background:var(--chip); 
-    border:1px solid var(--border); 
-    color:var(--text) 
-  }
-  .pill.highlight {
-    background: linear-gradient(135deg, rgba(106, 167, 255, 0.2), rgba(159, 123, 255, 0.2));
-    border-color: var(--accent);
-  }
-  .canvas{ 
-    flex:1; 
-    overflow:auto; 
-    padding:12px; 
-    display:grid; 
-    grid-template-columns: repeat(var(--cols), minmax(260px,1fr)); 
-    gap:12px 
-  }
-  .table-card{ 
-    background:var(--card); 
-    border:1px solid var(--border); 
-    border-radius:16px; 
-    padding:12px; 
-    display:flex; 
-    flex-direction:column; 
-    gap:10px;
-    transition:all 0.2s;
-  }
-  .table-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
-  .table-card.has-conflict {
-    background: var(--conflict-highlight);
-    border-color: var(--error);
-    animation: pulse 2s infinite;
-  }
-  
-  /* 隐藏桌子样式（仅占位、禁止交互） */
-  .table-card.hidden {
-    visibility: visible; /* 保留占位 */
-    position: relative;
-    background: transparent; /* 透明背景 */
-    border: 2px dashed rgba(255, 255, 255, 0.1); /* 虚线边框标识占位 */
-    pointer-events: none; /* 完全禁止交互 */
-    opacity: 0.6;
-  }
-  
-  /* 隐藏桌子内部所有元素 */
-  .table-card.hidden .table-header,
-  .table-card.hidden .table-visual,
-  .table-card.hidden .table-footer {
-    display: none; /* 隐藏所有内容 */
-  }
-  
-  /* 仅显示占位标识文本 */
-  .table-card.hidden::before {
-    content: '占位桌（不可用）';
-    visibility: visible;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: rgba(255, 255, 255, 0.3);
-    font-size: 14px;
-    text-align: center;
-    padding: 20px;
-    box-sizing: border-box;
-  }
-  
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
-    70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
-  }
-  
-  .table-header{ display:flex; align-items:center; gap:10px }
-  .badge{ 
-    font-weight:600; 
-    padding:6px 10px; 
-    border-radius:999px; 
-    background:linear-gradient(135deg,#27305d,#1f2550); 
-    border:1px solid var(--border) 
-  }
-  .capacity{ margin-left:auto; font-size:12px; color:var(--muted) }
-  .table-visual{ display:flex; align-items:center; justify-content:center; padding:10px 0 6px }
-  .round-wrap{ position:relative; width:220px; height:220px; margin:auto }
-  .round{ 
-    position:absolute; 
-    left:50%; 
-    top:50%; 
-    transform:translate(-50%,-50%); 
-    width:120px; 
-    height:120px; 
-    border-radius:50%; 
-    background:#2a2f68; 
-    border:2px solid var(--border); 
-    box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); 
-    display:flex; 
-    align-items:center; 
-    justify-content:center; 
-    color:#cfe3ff; 
-    font-weight:600 
-  }
-  .chair{ 
-    position:absolute; 
-    width:64px; 
-    height:28px; 
-    border-radius:14px; 
-    background:#222861; 
-    border:1px solid var(--border); 
-    display:flex; 
-    align-items:center; 
-    justify-content:center; 
-    padding:0 6px; 
-    white-space: nowrap; 
-    overflow:hidden; 
-    text-overflow:ellipsis;
-    transition:all 0.2s;
-  }
-  .chair:hover {
-    transform: scale(1.05);
-    z-index: 10;
-  }
-  .chair.empty{ opacity:.45; font-size:12px; color:var(--muted) }
-  .chair.conflict {
-    background: rgba(255, 59, 48, 0.3);
-    border-color: var(--error);
-    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-  }
-  
-  @keyframes shake {
-    10%, 90% { transform: translateX(-1px) scale(1.05); }
-    20%, 80% { transform: translateX(2px) scale(1.05); }
-    30%, 50%, 70% { transform: translateX(-3px) scale(1.05); }
-    40%, 60% { transform: translateX(3px) scale(1.05); }
-  }
-  
-  .chair .count {
-    font-size: 10px;
-    margin-left: 4px;
-    color: rgba(255, 255, 255, 0.7);
-  }
-  .chair .kick{ 
-    margin-left:6px; 
-    text-decoration:underline; 
-    cursor:pointer; 
-    color:#f8b4b4; 
-    font-size:12px;
-    opacity:0.7;
-    transition:opacity 0.2s;
-  }
-  .chair:hover .kick {
-    opacity:1;
-  }
-  .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
-  .spacer{flex:1} 
-  .link{
-    color:var(--accent); 
-    cursor:pointer; 
-    text-decoration:underline; 
-    font-size:12px;
-    transition:color 0.2s;
-  }
-  .link:hover {
-    color: var(--accent-2);
-  }
-  .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap } 
-  .grid-controls input[type="range"]{ width:160px }
-  
-  /* 提示消息样式 */
-  .toast-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .toast {
-    padding: 12px 16px;
-    border-radius: 8px;
-    color: white;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    animation: toastIn 0.3s ease forwards, toastOut 0.3s ease 2.7s forwards;
-    max-width: 300px;
-  }
-  .toast.success { background-color: var(--success); }
-  .toast.error { background-color: var(--error); }
-  .toast.warning { background-color: var(--warning); color: #333; }
-  .toast.info { background-color: var(--accent); }
-  
-  @keyframes toastIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes toastOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-  }
-  
-  /* 宾客分类选择器 */
-  .category-selector {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-    padding: 6px;
-    background: rgba(0,0,0,0.1);
-    border-radius: 8px;
-  }
-  .category-btn {
-    padding: 5px 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    background: var(--chip);
-    border: 1px solid var(--border);
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .category-btn::before {
-    content: '●';
-    font-size: 8px;
-  }
-  .category-btn.family::before { color: var(--family); }
-  .category-btn.friend::before { color: var(--friend); }
-  .category-btn.colleague::before { color: var(--colleague); }
-  .category-btn.other::before { color: var(--other); }
-  .category-btn:hover {
-    background: rgba(255,255,255,0.15);
-    transform: translateY(-1px);
-  }
-  .category-btn.active {
-    background: rgba(106, 167, 255, 0.2);
-    border-color: var(--accent);
-    color: var(--accent);
-    font-weight: 500;
-  }
-  
-  /* 批量操作菜单 */
-  .batch-actions {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed var(--border);
-  }
-  
-  /* 筛选结果提示 */
-  .filter-result {
-    font-size: 12px;
-    color: var(--muted);
-    margin: 4px 0 8px 0;
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: rgba(0,0,0,0.1);
-    display: flex;
-    justify-content: space-between;
-  }
-  
-  /* 导入预览 */
-  .import-preview {
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px;
-    margin: 8px 0;
-    background: rgba(0,0,0,0.1);
-  }
-  .import-preview-item {
-    padding: 4px 0;
-    border-bottom: 1px dashed var(--border);
-    font-size: 12px;
-  }
-  .import-preview-item:last-child {
-    border-bottom: none;
-  }
-  .import-preview .error {
-    color: var(--error);
-  }
-  
-  /* 冲突解决对话框 */
-  .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-  .modal-backdrop.active {
-    opacity: 1;
-    pointer-events: all;
-  }
-  .modal {
-    background: var(--panel);
-    border-radius: 16px;
-    width: 90%;
-    max-width: 500px;
-    padding: 20px;
-    border: 1px solid var(--border);
-    transform: translateY(20px);
-    transition: transform 0.3s ease;
-  }
-  .modal-backdrop.active .modal {
-    transform: translateY(0);
-  }
-  .modal h2 {
-    margin-top: 0;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .modal h2 i {
-    color: var(--error);
-  }
-  .modal p {
-    color: var(--muted);
-  }
-  .conflict-item {
-    background: var(--card);
-    border-radius: 8px;
-    padding: 10px;
-    margin: 10px 0;
-    border: 1px solid var(--border);
-  }
-  .conflict-item.theirs {
-    border-left: 3px solid var(--accent);
-  }
-  .conflict-item.mine {
-    border-left: 3px solid var(--success);
-  }
-  .modal-buttons {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-    margin-top: 20px;
-  }
-  
-  /* 加载指示器 */
-  .loading-indicator {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 1500;
-    background: var(--panel);
-    padding: 20px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border: 1px solid var(--border);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-  .loading-indicator.active {
-    opacity: 1;
-    pointer-events: all;
-  }
-  .loading-spinner {
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: var(--accent);
-    animation: spin 1s ease-in-out infinite;
-  }
-  
-  /* 打印样式优化（隐藏占位桌） */
-  @media print {
-    body {
-      background: white;
-      color: black;
-      display: block;
-      padding: 20px;
-      overflow: visible;
+  <!-- Tailwind 配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#10B981',
+            accent: '#F59E0B',
+            neutral: '#1F2937',
+            'neutral-light': '#F3F4F6',
+            danger: '#EF4444',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          boxShadow: {
+            'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          }
+        },
+      }
     }
-    .sidebar, .toolbar {
-      display: none !important;
-    }
-    .main {
-      width: 100%;
-      display: block;
-    }
-    .canvas {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 20px;
-      padding: 0;
-    }
-    .table-card {
-      background: white;
-      border: 1px solid #ccc;
-      color: black;
-      page-break-inside: avoid;
-    }
-    .table-card.hidden {
-      display: none !important; /* 打印时不显示占位桌 */
-    }
-    .round {
-      background: #f0f0f0;
-      border-color: #ccc;
-      color: black;
-    }
-    .chair {
-      background: #f0f0f0;
-      border-color: #ccc;
-      color: black;
-    }
-    .chair.empty {
-      display: none;
-    }
-    .table-footer {
-      display: none;
-    }
-  }
+  </script>
   
-  @media (max-width:920px){ 
-    body{
-      flex-direction:column; 
-      overflow:auto; 
-      padding:10px
-    } 
-    .sidebar{
-      width:auto; 
-      max-width:none;
-      height: auto;
-      max-height: 80vh;
-    } 
-    .canvas{
-      grid-template-columns:repeat(1, minmax(260px,1fr))
-    } 
-  }
-</style>
+  <!-- 自定义工具类 -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .transition-height {
+        transition: max-height 0.3s ease-in-out;
+      }
+      .text-shadow {
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+    }
+  </style>
 </head>
-<body>
-  <!-- 提示消息容器 -->
-  <div class="toast-container" id="toastContainer"></div>
-  
-  <!-- 加载指示器 -->
-  <div class="loading-indicator" id="loadingIndicator">
-    <div class="loading-spinner"></div>
-    <span id="loadingMessage">处理中...</span>
-  </div>
-  
-  <!-- 冲突解决对话框 -->
-  <div class="modal-backdrop" id="conflictModal">
-    <div class="modal">
-      <h2><i class="fas fa-exclamation-triangle"></i> 检测到数据冲突</h2>
-      <p>其他人也修改了这份座位表，您需要选择如何处理：</p>
-      
-      <div id="conflictDetails">
-        <!-- 冲突详情将在这里动态生成 -->
-      </div>
-      
-      <div class="modal-buttons">
-        <button class="btn ghost" id="keepMineBtn">保留我的更改</button>
-        <button class="btn ghost" id="takeTheirsBtn">采用他人更改</button>
-        <button class="btn" id="mergeChangesBtn">合并更改</button>
-      </div>
-    </div>
-  </div>
 
-  <aside class="sidebar">
-    <!-- 宾客管理区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-users"></i> 宾客管理</h1>
-      <input id="search" class="search" type="text" placeholder="搜索姓名…" />
-      
-      <!-- 宾客分类筛选 -->
-      <div class="category-selector" id="categoryFilter">
-        <div class="category-btn active" data-category="all">全部</div>
-        <div class="category-btn family" data-category="family">家人</div>
-        <div class="category-btn friend" data-category="friend">朋友</div>
-        <div class="category-btn colleague" data-category="colleague">同事</div>
-        <div class="category-btn other" data-category="other">其他</div>
+<body class="bg-gray-50 font-sans text-neutral overflow-hidden h-screen flex flex-col">
+  <!-- 顶部导航栏 -->
+  <header class="bg-white border-b border-gray-200 shadow-sm z-30">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <!-- 标题和logo -->
+      <div class="flex items-center space-x-3">
+        <div class="text-primary text-2xl">
+          <i class="fa fa-users"></i>
+        </div>
+        <h1 class="text-xl font-bold text-neutral">宾客座位规划系统</h1>
+        <span id="online-indicator" class="hidden md:flex items-center text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
+          <span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+          <span id="online-count">0</span>人在线
+        </span>
       </div>
       
-      <!-- 筛选结果提示 -->
-      <div class="filter-result" id="filterResult">
-        <span>显示全部未入座宾客</span>
-        <span id="filterCount">0人</span>
-      </div>
-      
-      <textarea id="bulkNames" rows="4" placeholder="批量粘贴姓名：每行一个；可带人数，如“张三 2”表示张三一行共2人；可带备注，如“李四 4（同事）”"></textarea>
-      
-      <!-- 宾客分类选择 -->
-      <div>
-        <label style="font-size:12px; color:var(--muted); margin-bottom:4px; display:block;">添加为：</label>
-        <select id="guestCategory" style="width:100%; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
-          <option value="family">家人</option>
-          <option value="friend">朋友</option>
-          <option value="colleague">同事</option>
-          <option value="other">其他</option>
-        </select>
-      </div>
-      
-      <div class="row">
-        <button class="btn" id="addGuestsBtn">
-          <i class="fas fa-user-plus"></i> 添加到名单
+      <!-- 操作按钮区 -->
+      <div class="flex items-center space-x-2 md:space-x-4">
+        <button id="save-btn" class="hidden md:flex items-center text-sm bg-primary hover:bg-primary/90 text-white px-3 py-1.5 rounded-md transition-all duration-200">
+          <i class="fa fa-save mr-1.5"></i> 保存
         </button>
-        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">
-          <i class="fas fa-trash"></i> 清空
+        <button id="export-btn" class="hidden md:flex items-center text-sm bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md transition-all duration-200">
+          <i class="fa fa-download mr-1.5"></i> 导出
+        </button>
+        <button id="print-btn" class="hidden md:flex items-center text-sm bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-md transition-all duration-200">
+          <i class="fa fa-print mr-1.5"></i> 打印
+        </button>
+        <button id="share-btn" class="hidden md:flex items-center text-sm bg-accent hover:bg-accent/90 text-white px-3 py-1.5 rounded-md transition-all duration-200">
+          <i class="fa fa-share-alt mr-1.5"></i> 分享
+        </button>
+        
+        <!-- 移动端菜单按钮 -->
+        <button id="mobile-menu-btn" class="md:hidden text-neutral hover:text-primary transition-colors">
+          <i class="fa fa-ellipsis-v text-xl"></i>
         </button>
       </div>
     </div>
-    
-    <!-- 桌位管理区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-utensils"></i> 桌位管理</h1>
-      <div class="row">
-        <input id="tableName" type="text" placeholder="桌名（如：1号桌）">
-        <input id="tableCap" type="number" min="1" value="10" title="座位数">
-        <button class="btn" id="addTableBtn">
-          <i class="fas fa-plus-square"></i> 新增
-        </button>
-      </div>
-      
-      <div class="row">
-        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">
-          <i class="fas fa-magic"></i> 自动排座
-        </button>
-        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">
-          <i class="fas fa-random"></i> 打散
-        </button>
-      </div>
-      
-      <!-- 桌子显示控制（仅占位/禁止交互/不统计） -->
-      <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.1); border-radius:8px;">
-        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:6px; font-weight:500;">占位桌控制</label>
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px; font-size:12px;">
-          <i class="fas fa-info-circle" style="color:var(--accent);"></i>
-          <span>隐藏的桌子仅作为占位，不可交互且不参与数据统计</span>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="flex flex-1 overflow-hidden">
+    <!-- 左侧功能栏 -->
+    <aside id="sidebar" class="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col h-full transition-all duration-300 z-20">
+      <!-- 计划信息 -->
+      <div class="p-4 border-b border-gray-200">
+        <div class="flex justify-between items-center mb-2">
+          <h2 class="text-lg font-semibold text-neutral">计划信息</h2>
+          <button id="edit-plan-btn" class="text-primary hover:text-primary/80 text-sm transition-colors">
+            <i class="fa fa-pencil"></i>
+          </button>
+        </div>
+        <div class="text-sm text-gray-600">
+          <p>计划ID: <span id="plan-id" class="font-mono truncate">loading...</span></p>
+          <p class="mt-1">更新于: <span id="last-updated">刚刚</span></p>
         </div>
       </div>
       
-      <!-- 自动排座高级选项 -->
-      <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.1); border-radius:8px;">
-        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">自动排座选项：</label>
-        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
-          <input type="checkbox" id="groupByCategory" checked>
-          <label for="groupByCategory" style="font-size:12px;">按类别分组</label>
+      <!-- 宾客管理 -->
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <div class="p-3 border-b border-gray-200 flex justify-between items-center">
+          <h3 class="font-medium text-neutral flex items-center">
+            <i class="fa fa-user-circle text-primary mr-2"></i>
+            宾客管理
+          </h3>
+          <span id="guest-count" class="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">0人</span>
         </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" id="optimizeSeating">
-          <label for="optimizeSeating" style="font-size:12px;">优化座位利用率</label>
+        
+        <!-- 宾客搜索和添加 -->
+        <div class="p-3 border-b border-gray-200">
+          <div class="relative mb-2">
+            <input 
+              type="text" 
+              id="guest-search" 
+              placeholder="搜索宾客..." 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            >
+            <i class="fa fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          </div>
+          
+          <div class="flex space-x-2">
+            <div class="relative flex-1">
+              <input 
+                type="text" 
+                id="new-guest" 
+                placeholder="添加宾客（格式：姓名 人数[可选](分类[可选])）" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+              >
+              <div class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                例：张三 2(家人)
+              </div>
+            </div>
+            <button id="add-guest-btn" class="bg-primary hover:bg-primary/90 text-white p-2 rounded-md transition-all">
+              <i class="fa fa-plus"></i>
+            </button>
+          </div>
+          
+          <button id="batch-add-btn" class="w-full mt-2 text-sm text-primary hover:text-primary/80 transition-colors">
+            <i class="fa fa-list-alt mr-1"></i> 批量添加
+          </button>
+        </div>
+        
+        <!-- 宾客分类筛选 -->
+        <div class="p-2 border-b border-gray-200 overflow-x-auto scrollbar-hide">
+          <div class="flex space-x-1 min-w-max">
+            <button class="filter-btn active px-3 py-1 bg-primary text-white text-xs rounded-full transition-all">
+              全部
+            </button>
+            <button class="filter-btn px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-full transition-all">
+              家人
+            </button>
+            <button class="filter-btn px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-full transition-all">
+              朋友
+            </button>
+            <button class="filter-btn px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-full transition-all">
+              同事
+            </button>
+            <button class="filter-btn px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-full transition-all">
+              其他
+            </button>
+          </div>
+        </div>
+        
+        <!-- 宾客列表（带滚动） -->
+        <div class="flex-1 overflow-y-auto scrollbar-hide p-2" id="guest-list-container">
+          <div id="guest-list" class="space-y-1.5">
+            <!-- 宾客项示例 -->
+            <div class="guest-item bg-gray-50 hover:bg-gray-100 p-2 rounded-md text-sm cursor-move transition-all border border-gray-200 hover:border-primary/30 flex justify-between items-center group">
+              <div>
+                <div class="font-medium">张三</div>
+                <div class="text-xs text-gray-500">2人 · 家人</div>
+              </div>
+              <button class="text-gray-400 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            
+            <div class="guest-item bg-gray-50 hover:bg-gray-100 p-2 rounded-md text-sm cursor-move transition-all border border-gray-200 hover:border-primary/30 flex justify-between items-center group">
+              <div>
+                <div class="font-medium">李四</div>
+                <div class="text-xs text-gray-500">1人 · 朋友</div>
+              </div>
+              <button class="text-gray-400 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            
+            <div class="guest-item bg-gray-50 hover:bg-gray-100 p-2 rounded-md text-sm cursor-move transition-all border border-gray-200 hover:border-primary/30 flex justify-between items-center group">
+              <div>
+                <div class="font-medium">王五</div>
+                <div class="text-xs text-gray-500">3人 · 同事</div>
+              </div>
+              <button class="text-gray-400 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            
+            <!-- 更多宾客项将通过JS动态添加 -->
+          </div>
+          
+          <!-- 空状态提示 -->
+          <div id="empty-guest-state" class="hidden flex flex-col items-center justify-center h-full text-gray-400 p-6">
+            <i class="fa fa-user-o text-4xl mb-3"></i>
+            <p class="text-center">暂无宾客，请添加宾客</p>
+          </div>
+        </div>
+        
+        <!-- 底部操作按钮 -->
+        <div class="p-3 border-t border-gray-200 bg-gray-50">
+          <button id="clear-unassigned-btn" class="w-full text-sm text-gray-600 hover:text-danger transition-colors py-1.5">
+            <i class="fa fa-trash-o mr-1"></i> 清空未入座宾客
+          </button>
         </div>
       </div>
-    </div>
-    
-    <!-- 批量操作区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-layer-group"></i> 批量操作</h1>
-      <div class="row">
-        <select id="batchTableSelect" style="flex:1; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
-          <option value="">选择目标桌...</option>
-          <!-- 选项会动态生成，自动排除隐藏桌 -->
-        </select>
-        <button class="btn ghost" id="batchMoveBtn" title="将所有未入座宾客移动到所选桌">
-          <i class="fas fa-arrow-right"></i> 移动全部
-        </button>
-      </div>
-    </div>
-    
-    <!-- 数据管理区域 -->
-    <div class="sidebar-section">
-      <h1><i class="fas fa-database"></i> 数据管理</h1>
-      <div class="row">
-        <button class="btn ghost" id="exportBtn">
-          <i class="fas fa-download"></i> 导出
-        </button>
-        <select id="exportFormat" style="padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
-          <option value="json">JSON</option>
-          <option value="csv">CSV</option>
-        </select>
+    </aside>
+
+    <!-- 右侧主区域 -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <!-- 操作工具栏 -->
+      <div class="bg-white border-b border-gray-200 p-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="add-table-btn" class="flex items-center text-sm bg-secondary hover:bg-secondary/90 text-white px-3 py-1.5 rounded-md transition-all duration-200">
+            <i class="fa fa-plus-circle mr-1.5"></i> 添加桌位
+          </button>
+          <button id="auto-arrange-btn" class="flex items-center text-sm bg-accent hover:bg-accent/90 text-white px-3 py-1.5 rounded-md transition-all duration-200">
+            <i class="fa fa-magic mr-1.5"></i> 自动排座
+          </button>
+          
+          <div class="flex items-center border border-gray-300 rounded-md overflow-hidden">
+            <button id="zoom-out-btn" class="text-gray-600 hover:bg-gray-100 px-2 py-1.5 text-sm transition-colors">
+              <i class="fa fa-search-minus"></i>
+            </button>
+            <div class="border-x border-gray-300 h-6"></div>
+            <button id="zoom-reset-btn" class="text-gray-600 hover:bg-gray-100 px-2 py-1.5 text-sm transition-colors">
+              100%
+            </button>
+            <div class="border-x border-gray-300 h-6"></div>
+            <button id="zoom-in-btn" class="text-gray-600 hover:bg-gray-100 px-2 py-1.5 text-sm transition-colors">
+              <i class="fa fa-search-plus"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <div class="text-sm text-gray-600">
+            总桌位: <span id="total-tables">0</span> | 总人数: <span id="total-people">0</span>
+          </div>
+          <button id="reset-all-btn" class="flex items-center text-sm text-danger hover:text-danger/80 px-3 py-1.5 rounded-md transition-all duration-200">
+            <i class="fa fa-refresh mr-1.5"></i> 重置全部
+          </button>
+        </div>
       </div>
       
-      <div style="margin-top:8px;">
-        <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">导入：</label>
-        <input id="importFile" type="file" accept=".json,.csv">
-        <div id="importPreview" class="import-preview" style="display:none;"></div>
-        <button class="btn ghost" id="confirmImportBtn" style="margin-top:8px; display:none;">确认导入</button>
+      <!-- 桌位布局区域 -->
+      <div class="flex-1 overflow-auto bg-gray-100 p-4" id="table-container">
+        <div id="table-area" class="min-h-full min-w-full">
+          <!-- 桌位示例 -->
+          <div class="table-item absolute bg-white rounded-lg shadow-card hover:shadow-card-hover border-2 border-gray-200 hover:border-primary transition-all duration-200 p-2 w-48" style="left: 50px; top: 50px;">
+            <div class="flex justify-between items-center mb-1">
+              <div class="font-medium text-sm">主桌</div>
+              <div class="text-xs text-gray-500">8人</div>
+            </div>
+            <div class="text-xs text-gray-600 max-h-32 overflow-y-auto scrollbar-hide">
+              <div class="flex justify-between items-center py-0.5 border-b border-gray-100">
+                <span>张三 (2人)</span>
+                <button class="text-gray-400 hover:text-danger text-xs">
+                  <i class="fa fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mt-1 flex justify-end gap-1">
+              <button class="table-edit-btn text-gray-400 hover:text-primary text-xs p-1" title="编辑">
+                <i class="fa fa-pencil"></i>
+              </button>
+              <button class="table-clear-btn text-gray-400 hover:text-gray-600 text-xs p-1" title="清空">
+                <i class="fa fa-trash-o"></i>
+              </button>
+              <button class="table-delete-btn text-gray-400 hover:text-danger text-xs p-1" title="删除">
+                <i class="fa fa-remove"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="table-item absolute bg-white rounded-lg shadow-card hover:shadow-card-hover border-2 border-gray-200 hover:border-primary transition-all duration-200 p-2 w-48" style="left: 250px; top: 50px;">
+            <div class="flex justify-between items-center mb-1">
+              <div class="font-medium text-sm">1号桌</div>
+              <div class="text-xs text-gray-500">6人</div>
+            </div>
+            <div class="text-xs text-gray-600 max-h-32 overflow-y-auto scrollbar-hide">
+              <div class="flex justify-between items-center py-0.5 border-b border-gray-100">
+                <span>李四 (1人)</span>
+                <button class="text-gray-400 hover:text-danger text-xs">
+                  <i class="fa fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div class="mt-1 flex justify-end gap-1">
+              <button class="table-edit-btn text-gray-400 hover:text-primary text-xs p-1" title="编辑">
+                <i class="fa fa-pencil"></i>
+              </button>
+              <button class="table-clear-btn text-gray-400 hover:text-gray-600 text-xs p-1" title="清空">
+                <i class="fa fa-trash-o"></i>
+              </button>
+              <button class="table-delete-btn text-gray-400 hover:text-danger text-xs p-1" title="删除">
+                <i class="fa fa-remove"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- 占位桌示例 -->
+          <div class="table-item placeholder-table absolute bg-white/30 rounded-lg border-2 border-dashed border-gray-400 p-2 w-48" style="left: 450px; top: 50px;">
+            <div class="text-center text-gray-500 text-sm font-medium">占位桌（不可用）</div>
+          </div>
+        </div>
       </div>
-      
-      <div class="row" style="margin-top:8px;">
-        <button class="btn ghost" id="printBtn">
-          <i class="fas fa-print"></i> 打印
-        </button>
-        <button class="btn warn" id="resetAllBtn">
-          <i class="fas fa-exclamation-triangle"></i> 重置全部
-        </button>
-      </div>
     </div>
-	
-    <!-- 未入座宾客列表区域 -->
-    <div class="sidebar-section guest-list-container">
-      <h1><i class="fas fa-list"></i> 未入座宾客</h1>
-      <div id="guestList" class="guest-list" aria-label="未入座列表"></div>
-    </div>
-  </aside>
-
-  <main class="main">
-    <div class="toolbar">
-      <div class="pill highlight">实时协作：把下面的分享链接发给同事/亲友，大家看到的是同一份座位表。</div>
-    </div>
-
-    <div class="toolbar" style="gap:10px">
-      <div class="grid-controls">
-        <span>每排桌数：</span>
-        <input id="colsRange" type="range" min="1" max="8" step="1" value="3">
-        <input id="colsNumber" type="number" min="1" max="8" step="1" value="3" style="width:64px">
-      </div>
-      <button class="btn" id="shareBtn">
-        <i class="fas fa-share-alt"></i> 复制分享链接
-      </button>
-      <span class="pill">链接：<span id="shareTip" style="opacity:.85"></span></span>
-      <span class="pill">计划ID：<code id="planIdLabel"></code></span>
-      <span class="pill" id="onlineUsers">在线：0人</span>
-    </div>
-
-    <div id="canvas" class="canvas" aria-label="桌面画布"></div>
   </main>
 
+  <!-- 模态框：批量添加宾客 -->
+  <div id="batch-add-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="font-semibold text-lg">批量添加宾客</h3>
+        <button id="close-batch-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-4">
+        <p class="text-sm text-gray-600 mb-3">每行添加一位宾客，格式：姓名 [人数(可选)] (分类(可选))</p>
+        <textarea 
+          id="batch-guests" 
+          class="w-full border border-gray-300 rounded-md p-3 h-40 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+          placeholder="例如：
+张三 2(家人)
+李四 (朋友)
+王五 3
+赵六"
+        ></textarea>
+      </div>
+      <div class="p-4 border-t border-gray-200 flex justify-end">
+        <button id="confirm-batch-add" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-md transition-colors">
+          确认添加
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框：添加/编辑桌位 -->
+  <div id="table-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 id="table-modal-title" class="font-semibold text-lg">添加桌位</h3>
+        <button id="close-table-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-4">
+        <div class="mb-4">
+          <label for="table-name" class="block text-sm font-medium text-gray-700 mb-1">桌位名称</label>
+          <input 
+            type="text" 
+            id="table-name" 
+            class="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            placeholder="例如：1号桌、主桌"
+          >
+        </div>
+        <div>
+          <label for="table-capacity" class="block text-sm font-medium text-gray-700 mb-1">容纳人数</label>
+          <input 
+            type="number" 
+            id="table-capacity" 
+            min="1" 
+            class="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            placeholder="请输入桌位可容纳人数"
+          >
+        </div>
+      </div>
+      <div class="p-4 border-t border-gray-200 flex justify-end">
+        <button id="confirm-table" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-md transition-colors">
+          确认
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框：自动排座设置 -->
+  <div id="arrange-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="font-semibold text-lg">自动排座设置</h3>
+        <button id="close-arrange-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-4">
+        <div class="flex items-center mb-3">
+          <input type="checkbox" id="group-by-category" class="mr-2 h-4 w-4 text-primary focus:ring-primary/50 border-gray-300 rounded">
+          <label for="group-by-category" class="text-sm text-gray-700">按类别分组排座</label>
+        </div>
+        <div class="flex items-center">
+          <input type="checkbox" id="optimize-utilization" class="mr-2 h-4 w-4 text-primary focus:ring-primary/50 border-gray-300 rounded">
+          <label for="optimize-utilization" class="text-sm text-gray-700">优化座位利用率</label>
+        </div>
+      </div>
+      <div class="p-4 border-t border-gray-200 flex justify-end">
+        <button id="confirm-arrange" class="bg-accent hover:bg-accent/90 text-white px-4 py-2 rounded-md transition-colors">
+          开始排座
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框：分享链接 -->
+  <div id="share-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="font-semibold text-lg">分享计划</h3>
+        <button id="close-share-modal" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-4">
+        <p class="text-sm text-gray-600 mb-3">复制链接分享给他人，共同编辑此座位计划</p>
+        <div class="flex">
+          <input 
+            type="text" 
+            id="share-link" 
+            class="flex-1 border border-gray-300 rounded-l-md p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            readonly
+          >
+          <button id="copy-link-btn" class="bg-primary hover:bg-primary/90 text-white px-3 py-2.5 rounded-r-md transition-colors">
+            复制
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 移动端菜单 -->
+  <div id="mobile-menu" class="fixed inset-0 bg-black/50 z-40 hidden">
+    <div class="absolute right-0 top-0 bottom-0 w-64 bg-white shadow-lg transform transition-transform duration-300">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="font-semibold">菜单</h3>
+        <button id="close-mobile-menu" class="text-gray-500 hover:text-gray-700">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <div class="p-2">
+        <button class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center">
+          <i class="fa fa-save w-5 text-primary mr-2"></i> 保存
+        </button>
+        <button class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center">
+          <i class="fa fa-download w-5 text-gray-700 mr-2"></i> 导出
+        </button>
+        <button class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center">
+          <i class="fa fa-print w-5 text-gray-700 mr-2"></i> 打印
+        </button>
+        <button class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center">
+          <i class="fa fa-share-alt w-5 text-accent mr-2"></i> 分享
+        </button>
+        <div class="border-t border-gray-200 my-2"></div>
+        <button class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-md transition-colors flex items-center text-danger">
+          <i class="fa fa-refresh w-5 mr-2"></i> 重置全部
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 通知提示 -->
+  <div id="notification" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-3 rounded-md shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center">
+    <i id="notification-icon" class="fa fa-check-circle text-green-400 mr-2"></i>
+    <span id="notification-message">操作成功</span>
+  </div>
+
+  <!-- 确认对话框 -->
+  <div id="confirm-dialog" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+      <div class="p-4 border-b border-gray-200">
+        <h3 id="confirm-title" class="font-semibold text-lg">确认操作</h3>
+      </div>
+      <div class="p-4">
+        <p id="confirm-message" class="text-gray-600">您确定要执行此操作吗？</p>
+      </div>
+      <div class="p-4 border-t border-gray-200 flex justify-end space-x-2">
+        <button id="cancel-confirm" class="border border-gray-300 hover:bg-gray-100 text-gray-700 px-4 py-2 rounded-md transition-colors">
+          取消
+        </button>
+        <button id="accept-confirm" class="bg-danger hover:bg-danger/90 text-white px-4 py-2 rounded-md transition-colors">
+          确认
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript 代码 -->
   <script>
-    // 座位规划系统核心功能实现
-    document.addEventListener('DOMContentLoaded', async () => {
-      // 配置与初始化
-      const config = {
-        supabaseUrl: "https://dlgecgypzeucpfrcxdzq.supabase.co",
-        supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZ2VjZ3lwemV1Y3BmcmN4ZHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwODk4ODUsImV4cCI6MjA3MDY2NTg4NX0.xz0twrBoz9xh3X7LI2uati8EKlTEq3NpKhaorzuiyCE",
-        saveDelay: 500,
-        defaultCols: 3,
-        maxCols: 8,
-        minCols: 1
-      };
-
-      // 初始化Supabase
-      const supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseKey);
+    // 初始化Supabase客户端
+    const supabaseUrl = 'https://your-project-id.supabase.co';
+    const supabaseKey = 'your-anon-key';
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    
+    // 全局状态管理
+    const state = {
+      planId: null,
+      guests: [],
+      tables: [],
+      onlineUsers: 0,
+      isDragging: false,
+      draggedGuest: null,
+      zoomLevel: 100,
+    };
+    
+    // DOM元素引用
+    const elements = {
+      guestList: document.getElementById('guest-list'),
+      guestListContainer: document.getElementById('guest-list-container'),
+      guestCount: document.getElementById('guest-count'),
+      emptyGuestState: document.getElementById('empty-guest-state'),
+      tableArea: document.getElementById('table-area'),
+      totalTables: document.getElementById('total-tables'),
+      totalPeople: document.getElementById('total-people'),
+      planIdDisplay: document.getElementById('plan-id'),
+      onlineCount: document.getElementById('online-count'),
       
-      // 状态管理
-      window.state = {
-        guests: [],
-        tables: [], // 每张桌子包含visible属性
-        planId: new URLSearchParams((location.hash || "").slice(1)).get("plan"),
-        version: 0,
-        onlineUsers: 0,
-        seatingChart: null,
-        localChanges: {
-          guests: { added: [], updated: [], removed: [] },
-          tables: { added: [], updated: [], removed: [] }
-        },
-        draggingId: null,
-        writing: false,
-        writeTimer: null
-      };
-
-      // DOM元素缓存
-      window.el = {};
-      const selectors = [
-        'loadingIndicator', 'loadingMessage', 'toastContainer', 'search', 'bulkNames',
-        'addGuestsBtn', 'clearGuestsBtn', 'tableName', 'tableCap', 'addTableBtn',
-        'guestList', 'canvas', 'stats', 'autoSeatBtn', 'shuffleBtn', 'exportBtn',
-        'exportFormat', 'importFile', 'importPreview', 'confirmImportBtn', 'printBtn',
-        'resetAllBtn', 'shareBtn', 'shareTip', 'planIdLabel', 'colsRange', 'colsNumber',
-        'guestCategory', 'categoryFilter', 'batchTableSelect', 'batchMoveBtn',
-        'filterResult', 'filterCount', 'groupByCategory', 'optimizeSeating',
-        'conflictModal', 'keepMineBtn', 'takeTheirsBtn', 'mergeChangesBtn',
-        'conflictDetails', 'onlineUsers', 'seatingChart'
-      ];
-      selectors.forEach(id => el[id] = document.getElementById(id));
-
-      // 工具函数
-      window.utils = {
-        uid: () => Math.random().toString(36).slice(2, 9),
-        qs: (s, r = document) => r.querySelector(s),
-        qsa: (s, r = document) => Array.from(r.querySelectorAll(s)),
-        escapeHtml: s => s.replace(/[&<>\"']/g, c => ({
-          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        }[c])),
-        shortName: s => (s.replace(/[（(].*?[)）]/g, '').trim()).length <= 4 
-          ? s : s.slice(0, 4),
-        isEqual: (a, b) => JSON.stringify(a) === JSON.stringify(b),
-        getCategoryName: category => ({
-          family: '家人', friend: '朋友', colleague: '同事', other: '其他'
-        }[category] || '其他'),
-        escapeCsv: value => {
-          if (typeof value !== 'string') return value;
-          return (value.includes(',') || value.includes('"') || value.includes('\n'))
-            ? `"${value.replace(/"/g, '""')}"` : value;
+      // 模态框
+      batchAddModal: document.getElementById('batch-add-modal'),
+      tableModal: document.getElementById('table-modal'),
+      arrangeModal: document.getElementById('arrange-modal'),
+      shareModal: document.getElementById('share-modal'),
+      mobileMenu: document.getElementById('mobile-menu'),
+      confirmDialog: document.getElementById('confirm-dialog'),
+      
+      // 通知
+      notification: document.getElementById('notification'),
+      notificationIcon: document.getElementById('notification-icon'),
+      notificationMessage: document.getElementById('notification-message'),
+    };
+    
+    // 初始化应用
+    async function initApp() {
+      // 从URL获取或创建计划ID
+      await initializePlanId();
+      
+      // 加载数据
+      await loadData();
+      
+      // 设置事件监听器
+      setupEventListeners();
+      
+      // 初始化协作功能
+      setupCollaboration();
+      
+      // 检查并显示空状态
+      checkEmptyStates();
+    }
+    
+    // 从URL获取或创建计划ID
+    async function initializePlanId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      let planId = urlParams.get('plan');
+      
+      if (planId) {
+        // 验证计划ID是否存在
+        const { data } = await supabase
+          .from('seating_plans')
+          .select('id')
+          .eq('id', planId)
+          .single();
+          
+        if (data) {
+          state.planId = planId;
+        } else {
+          // 计划ID不存在，创建新计划
+          state.planId = await createNewPlan();
         }
-      };
-
-      // 验证工具
-      const validator = {
-        name: name => {
-          if (!name || name.trim() === '') return { valid: false, message: '姓名不能为空' };
-          if (name.length > 50) return { valid: false, message: '姓名过长，请控制在50字符以内' };
-          return { valid: true };
-        },
-        count: count => {
-          const num = Number(count);
-          if (isNaN(num) || num < 1 || !Number.isInteger(num)) {
-            return { valid: false, message: '人数必须是大于0的整数' };
-          }
-          if (num > 10) return { valid: false, message: '人数过多，请控制在10人以内' };
-          return { valid: true };
-        },
-        tableName: name => {
-          if (!name || name.trim() === '') return { valid: false, message: '桌名不能为空' };
-          if (name.length > 30) return { valid: false, message: '桌名过长，请控制在30字符以内' };
-          return { valid: true };
-        },
-        capacity: cap => {
-          const num = Number(cap);
-          if (isNaN(num) || num < 1 || !Number.isInteger(num)) {
-            return { valid: false, message: '容量必须是大于0的整数' };
-          }
-          if (num > 100) return { valid: false, message: '容量过大，请控制在100以内' };
-          return { valid: true };
-        }
-      };
-
-      // UI工具
-      window.ui = {
-        showLoading: (message = '处理中...') => {
-          el.loadingMessage.textContent = message;
-          el.loadingIndicator.classList.add('active');
-        },
-        hideLoading: () => el.loadingIndicator.classList.remove('active'),
-        showToast: (message, type = 'success', duration = 3000) => {
-          const toast = document.createElement('div');
-          const icons = { success: 'check-circle', error: 'times-circle', warning: 'exclamation-circle', info: 'info-circle' };
-          toast.className = `toast ${type}`;
-          toast.innerHTML = `<i class="fas fa-${icons[type]}"></i><span>${message}</span>`;
-          el.toastContainer.appendChild(toast);
-          setTimeout(() => toast.remove(), duration);
-        },
-        setCols: n => {
-          n = Math.max(config.minCols, Math.min(config.maxCols, Number(n) || config.defaultCols));
-          document.documentElement.style.setProperty('--cols', n);
-          el.colsRange.value = n;
-          el.colsNumber.value = n;
-          localStorage.setItem('seating_cols', String(n));
-        }
-      };
-
-      // 数据管理
-      window.dataManager = {
-        seed: () => ({
-          guests: [
-            { id: utils.uid(), name: '张三', count: 2, category: 'family', related: [] },
-            { id: utils.uid(), name: '李四', count: 3, category: 'friend', related: [] },
-            { id: utils.uid(), name: '王五', count: 1, category: 'colleague', related: [] },
-            { id: utils.uid(), name: '赵六', count: 2, category: 'family', related: [] },
-            { id: utils.uid(), name: '钱七', count: 4, category: 'friend', related: [] },
-            { id: utils.uid(), name: '孙八', count: 2, category: 'colleague', related: [] },
-            { id: utils.uid(), name: '周九', count: 1, category: 'other', related: [] },
-            { id: utils.uid(), name: '吴十', count: 2, category: 'family', related: [] }
-          ],
-          tables: [
-            { id: utils.uid(), name: '1号桌', capacity: 10, guests: [], visible: true },
-            { id: utils.uid(), name: '2号桌', capacity: 10, guests: [], visible: true },
-            { id: utils.uid(), name: '3号桌', capacity: 8, guests: [], visible: true }
-          ]
-        }),
-
-        async ensurePlan() {
-          if (state.planId) return state.planId;
-          try {
-            ui.showLoading('创建新计划...');
-            const seeded = this.seed();
-            const { data, error } = await supabase
-              .from('plans')
-              .insert({ title: 'Seating Plan', state: seeded, version: 1 })
-              .select('id')
-              .single();
-            
-            if (error) throw error;
-            state.planId = data.id;
-            state.version = 1;
-            const url = new URL(location.href);
-            url.hash = `plan=${state.planId}`;
-            history.replaceState(null, '', url);
-            ui.showToast('计划创建成功');
-            return state.planId;
-          } catch (error) {
-            ui.showToast('创建计划失败：' + error.message, 'error');
-            throw error;
-          } finally {
-            ui.hideLoading();
-          }
-        },
-
-        async loadPlan() {
-          try {
-            ui.showLoading('加载计划中...');
-            const { data, error } = await supabase
-              .from('plans')
-              .select('state, version')
-              .eq('id', state.planId)
-              .single();
-            
-            if (error) throw error;
-            
-            // 合并状态并处理兼容性
-            Object.assign(state, {
-              ...data.state,
-              version: data.version || 1
-            });
-            
-            // 数据兼容性处理
-            state.guests = (state.guests || []).map(guest => ({
-              ...guest,
-              count: guest.count ?? 1,
-              category: guest.category ?? 'other',
-              related: guest.related ?? []
-            }));
-            
-            state.tables = (state.tables || []).map(table => ({
-              ...table,
-              visible: table.visible ?? true // 确保每张桌子都有visible属性
-            }));
-            
-            // 初始化空计划
-            if (!state.guests.length && !state.tables.length) {
-              const seeded = this.seed();
-              state.guests = seeded.guests;
-              state.tables = seeded.tables;
-              this.scheduleSave();
-            }
-            
-            renderer.render();
-            renderer.updateChart();
-            ui.showToast('计划加载成功');
-          } catch (error) {
-            ui.showToast('加载计划失败，请刷新页面重试', 'error');
-          } finally {
-            ui.hideLoading();
-          }
-        },
-
-        scheduleSave() {
-          if (state.writing) return;
-          clearTimeout(state.writeTimer);
-          state.writeTimer = setTimeout(() => this.saveNow(), config.saveDelay);
-        },
-
-        async saveNow() {
-          if (!state.planId) return;
-          
-          state.writing = true;
-          try {
-            this.detectAndFixConflicts();
-            const newVersion = state.version + 1;
-            
-            // 保存时包含visible属性
-            const { error } = await supabase
-              .from('plans')
-              .update({ 
-                state: { 
-                  guests: state.guests, 
-                  tables: state.tables // 包含visible属性
-                }, 
-                version: newVersion 
-              })
-              .eq('id', state.planId)
-              .eq('version', state.version);
-            
-            if (error) {
-              if (error.code === '23505' || error.message.includes('violates row-level security')) {
-                this.showConflictModal();
-              } else {
-                ui.showToast('保存失败: ' + error.message, 'error');
-              }
-            } else {
-              state.version = newVersion;
-              this.clearLocalChanges();
-            }
-          } catch (error) {
-            ui.showToast('保存过程出错，请重试', 'error');
-          } finally {
-            state.writing = false;
-          }
-        },
-
-        detectAndFixConflicts() {
-          // 仅检查可见桌的冲突
-          const visibleTables = state.tables.filter(table => table.visible);
-          const guestCounts = {};
-          
-          visibleTables.forEach(table => {
-            table.guests.forEach(guestId => {
-              guestCounts[guestId] = (guestCounts[guestId] || 0) + 1;
-            });
-          });
-          
-          const conflictGuests = Object.entries(guestCounts)
-            .filter(([_, count]) => count > 1)
-            .map(([guestId, _]) => guestId);
-          
-          if (conflictGuests.length) {
-            const seen = new Set();
-            visibleTables.forEach(table => {
-              table.guests = table.guests.filter(guestId => {
-                if (conflictGuests.includes(guestId)) {
-                  if (!seen.has(guestId)) {
-                    seen.add(guestId);
-                    return true;
-                  }
-                  return false;
-                }
-                return true;
-              });
-            });
-            ui.showToast(`已自动修复 ${conflictGuests.length} 个座位冲突`, 'warning');
-          }
-          return conflictGuests.length > 0;
-        },
-
-        clearLocalChanges() {
-          state.localChanges = {
-            guests: { added: [], updated: [], removed: [] },
-            tables: { added: [], updated: [], removed: [] }
-          };
-        },
-
-        async showConflictModal() {
-          try {
-            const { data: serverData } = await supabase
-              .from('plans')
-              .select('state, version')
-              .eq('id', state.planId)
-              .single();
-            
-            const serverState = serverData.state;
-            const serverVersion = serverData.version;
-            const conflicts = this.analyzeConflicts(state, serverState);
-            
-            renderer.displayConflicts(conflicts);
-            el.conflictModal.classList.add('active');
-            
-            const handleClose = () => {
-              el.conflictModal.classList.remove('active');
-              el.keepMineBtn.removeEventListener('click', keepMineHandler);
-              el.takeTheirsBtn.removeEventListener('click', takeTheirsHandler);
-              el.mergeChangesBtn.removeEventListener('click', mergeChangesHandler);
-            };
-            
-            const keepMineHandler = async () => {
-              state.version = serverVersion;
-              await this.saveNow();
-              handleClose();
-            };
-            
-            const takeTheirsHandler = async () => {
-              Object.assign(state, serverState);
-              // 补充visible属性
-              state.tables = state.tables.map(table => ({
-                ...table,
-                visible: table.visible ?? true
-              }));
-              state.version = serverVersion;
-              this.clearLocalChanges();
-              renderer.render();
-              renderer.updateChart();
-              handleClose();
-              ui.showToast('已采用最新的服务器数据');
-            };
-            
-            const mergeChangesHandler = async () => {
-              const mergedState = this.mergeStates(state, serverState);
-              Object.assign(state, mergedState);
-              // 补充visible属性
-              state.tables = state.tables.map(table => ({
-                ...table,
-                visible: table.visible ?? true
-              }));
-              state.version = serverVersion;
-              this.clearLocalChanges();
-              await this.saveNow();
-              renderer.render();
-              renderer.updateChart();
-              handleClose();
-              ui.showToast('已合并本地和服务器的更改');
-            };
-            
-            el.keepMineBtn.addEventListener('click', keepMineHandler);
-            el.takeTheirsBtn.addEventListener('click', takeTheirsHandler);
-            el.mergeChangesBtn.addEventListener('click', mergeChangesHandler);
-            
-          } catch (error) {
-            ui.showToast('处理冲突失败，请刷新页面', 'error');
-          }
-        },
-
-        analyzeConflicts(localState, serverState) {
-          const conflicts = { guests: [], tables: [] };
-          
-          // 分析宾客冲突
-          const localGuestsById = Object.fromEntries(localState.guests.map(g => [g.id, g]));
-          const serverGuestsById = Object.fromEntries(serverState.guests.map(g => [g.id, g]));
-          
-          Object.entries(localGuestsById).forEach(([id, localGuest]) => {
-            const serverGuest = serverGuestsById[id];
-            if (serverGuest) {
-              if (!utils.isEqual(localGuest, serverGuest)) {
-                conflicts.guests.push({
-                  id,
-                  mine: localGuest,
-                  theirs: serverGuest
-                });
-              }
-            }
-          });
-          
-          // 分析桌子冲突（仅分析可见桌）
-          const localTablesById = Object.fromEntries(
-            localState.tables.filter(t => t.visible).map(t => [t.id, t])
-          );
-          const serverTablesById = Object.fromEntries(
-            serverState.tables.filter(t => t.visible).map(t => [t.id, t])
-          );
-          
-          Object.entries(localTablesById).forEach(([id, localTable]) => {
-            const serverTable = serverTablesById[id];
-            if (serverTable) {
-              if (!utils.isEqual(localTable, serverTable)) {
-                conflicts.tables.push({
-                  id,
-                  mine: localTable,
-                  theirs: serverTable
-                });
-              }
-            }
-          });
-          
-          return conflicts;
-        },
-
-        mergeStates(localState, serverState) {
-          // 合并宾客数据
-          const guestsById = {};
-          serverState.guests.forEach(g => guestsById[g.id] = g);
-          localState.guests.forEach(g => guestsById[g.id] = g);
-          
-          // 合并桌子数据（仅合并可见桌）
-          const tablesById = {};
-          serverState.tables.filter(t => t.visible).forEach(t => tablesById[t.id] = t);
-          localState.tables.filter(t => t.visible).forEach(t => tablesById[t.id] = t);
-          
-          // 处理隐藏桌
-          const hiddenTables = [...serverState.tables, ...localState.tables]
-            .filter(t => !t.visible)
-            .reduce((acc, t) => {
-              if (!acc[t.id]) acc[t.id] = t;
-              return acc;
-            }, {});
-          
-          return {
-            ...localState,
-            guests: Object.values(guestsById),
-            tables: [...Object.values(tablesById), ...Object.values(hiddenTables)]
-          };
-        },
-
-        exportData(format = 'json') {
-          // 仅导出可见桌数据
-          const visibleTables = state.tables.filter(table => table.visible);
-          
-          const exportData = {
-            guests: state.guests,
-            tables: visibleTables,
-            exportTime: new Date().toISOString()
-          };
-          
-          let content, mimeType, extension;
-          
-          if (format === 'csv') {
-            // 导出座位表CSV
-            let csv = "桌名,容量,已入座,宾客名单\n";
-            visibleTables.forEach(table => {
-              const occupied = renderer.getTableOccupiedSeats(table.id);
-              const guestNames = table.guests
-                .map(id => {
-                  const guest = state.guests.find(g => g.id === id);
-                  return guest ? `${guest.name}(${guest.count}人)` : '';
-                })
-                .filter(Boolean)
-                .join(';');
-              
-              csv += `${utils.escapeCsv(table.name)},${table.capacity},${occupied},${utils.escapeCsv(guestNames)}\n`;
-            });
-            
-            // 添加未入座宾客
-            const seatedIds = new Set(visibleTables.flatMap(t => t.guests));
-            const unseated = state.guests.filter(g => !seatedIds.has(g.id));
-            
-            csv += "\n未入座宾客,人数,类别\n";
-            unseated.forEach(guest => {
-              csv += `${utils.escapeCsv(guest.name)},${guest.count},${utils.getCategoryName(guest.category)}\n`;
-            });
-            
-            content = csv;
-            mimeType = 'text/csv';
-            extension = 'csv';
-          } else {
-            // JSON格式
-            content = JSON.stringify(exportData, null, 2);
-            mimeType = 'application/json';
-            extension = 'json';
-          }
-          
-          const blob = new Blob([content], { type: mimeType });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `座位表_${new Date().toLocaleDateString().replace(/\//g, '-')}.${extension}`;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }, 0);
-        },
-
-        parseImportData(content, fileName) {
-          const results = {
-            valid: [],
-            invalid: [],
-            total: 0
-          };
-          
-          try {
-            if (fileName.endsWith('.json')) {
-              const data = JSON.parse(content);
-              
-              if (data.guests && Array.isArray(data.guests)) {
-                data.guests.forEach((guest, index) => {
-                  const result = this.validateGuest(guest);
-                  if (result.valid) {
-                    results.valid.push({
-                      ...result.data,
-                      id: utils.uid() // 生成新ID避免冲突
-                    });
-                  } else {
-                    results.invalid.push({
-                      line: index + 1,
-                      data: guest,
-                      error: result.error
-                    });
-                  }
-                });
-              }
-              
-              if (data.tables && Array.isArray(data.tables)) {
-                data.tables.forEach((table, index) => {
-                  const result = this.validateTable(table);
-                  if (result.valid) {
-                    results.valid.push({
-                      ...result.data,
-                      id: utils.uid(), // 生成新ID避免冲突
-                      guests: [], // 导入的桌子不包含宾客分配
-                      visible: table.visible ?? true
-                    });
-                  } else {
-                    results.invalid.push({
-                      line: index + 1,
-                      data: table,
-                      error: result.error
-                    });
-                  }
-                });
-              }
-            } else if (fileName.endsWith('.csv')) {
-              const lines = content.split('\n').filter(line => line.trim() !== '');
-              lines.forEach((line, index) => {
-                if (index === 0) return; // 跳过表头
-                
-                // 简单CSV解析
-                const parts = line.split(',').map(p => p.trim().replace(/^"/, '').replace(/"$/, ''));
-                if (parts.length >= 1) {
-                  const name = parts[0];
-                  const count = parts.length >= 2 && !isNaN(Number(parts[1])) ? Number(parts[1]) : 1;
-                  const category = parts.length >= 3 ? parts[2].toLowerCase() : 'other';
-                  
-                  const result = this.validateGuest({ name, count, category });
-                  if (result.valid) {
-                    results.valid.push({
-                      ...result.data,
-                      id: utils.uid()
-                    });
-                  } else {
-                    results.invalid.push({
-                      line: index + 1,
-                      data: { name, count, category },
-                      error: result.error
-                    });
-                  }
-                }
-              });
-            }
-            
-            results.total = results.valid.length + results.invalid.length;
-            return results;
-          } catch (error) {
-            results.invalid.push({ line: 0, data: content, error: '文件格式错误: ' + error.message });
-            results.total = 1;
-            return results;
-          }
-        },
-
-        validateGuest(guest) {
-          const nameCheck = validator.name(guest.name);
-          if (!nameCheck.valid) {
-            return { valid: false, error: nameCheck.message };
-          }
-          
-          const countCheck = validator.count(guest.count ?? 1);
-          if (!countCheck.valid) {
-            return { valid: false, error: countCheck.message };
-          }
-          
-          const validCategories = ['family', 'friend', 'colleague', 'other'];
-          const category = validCategories.includes(guest.category) ? guest.category : 'other';
-          
-          return {
-            valid: true,
-            data: {
-              name: guest.name.trim(),
-              count: guest.count ?? 1,
-              category,
-              related: guest.related ?? []
-            }
-          };
-        },
-
-        validateTable(table) {
-          const nameCheck = validator.tableName(table.name);
-          if (!nameCheck.valid) {
-            return { valid: false, error: nameCheck.message };
-          }
-          
-          const capCheck = validator.capacity(table.capacity ?? 10);
-          if (!capCheck.valid) {
-            return { valid: false, error: capCheck.message };
-          }
-          
-          return {
-            valid: true,
-            data: {
-              name: table.name.trim(),
-              capacity: table.capacity ?? 10,
-              guests: [],
-              visible: table.visible ?? true
-            }
-          };
-        },
-
-        applyImport(results, replace = false) {
-          if (replace) {
-            // 替换现有数据，保留可见性设置
-            const tableVisibility = {};
-            state.tables.forEach(t => {
-              tableVisibility[t.id] = t.visible;
-            });
-            
-            state.guests = results.valid.filter(item => item.name);
-            state.tables = results.valid
-              .filter(item => item.capacity)
-              .map(table => ({
-                ...table,
-                visible: tableVisibility[table.id] ?? table.visible
-              }));
-          } else {
-            // 合并数据
-            const newGuests = results.valid.filter(item => item.name);
-            const newTables = results.valid
-              .filter(item => item.capacity)
-              .filter(newTable => !state.tables.some(t => t.name === newTable.name));
-            
-            state.guests = [...state.guests, ...newGuests];
-            state.tables = [...state.tables, ...newTables];
-          }
-          
-          state.localChanges.guests.added.push(...results.valid.filter(item => item.name).map(g => g.id));
-          state.localChanges.tables.added.push(...results.valid.filter(item => item.capacity).map(t => t.id));
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          renderer.updateChart();
-          
-          return {
-            added: results.valid.length,
-            skipped: results.invalid.length
-          };
-        }
-      };
-
-      // 渲染器
-      window.renderer = {
-        render: function() {
-          this.renderGuestList();
-          this.renderTables();
-          this.updateStats();
-          this.updateBatchTableSelect();
-          this.updatePlanInfo();
-        },
+      } else {
+        // 没有计划ID，创建新计划
+        state.planId = await createNewPlan();
+      }
+      
+      // 更新URL和显示
+      updatePlanUrl();
+      elements.planIdDisplay.textContent = state.planId.substring(0, 8) + '...';
+    }
+    
+    // 创建新计划
+    async function createNewPlan() {
+      const { data, error } = await supabase
+        .from('seating_plans')
+        .insert([{ 
+          name: '新座位计划',
+          guests: [],
+          tables: []
+        }])
+        .select();
+      
+      if (error) {
+        showNotification('创建计划失败', 'error');
+        console.error('Error creating plan:', error);
+        return null;
+      }
+      
+      return data[0].id;
+    }
+    
+    // 更新URL中的计划ID
+    function updatePlanUrl() {
+      const url = new URL(window.location.href);
+      url.searchParams.set('plan', state.planId);
+      window.history.pushState({}, '', url);
+    }
+    
+    // 加载数据
+    async function loadData() {
+      if (!state.planId) return;
+      
+      const { data, error } = await supabase
+        .from('seating_plans')
+        .select('guests, tables')
+        .eq('id', state.planId)
+        .single();
+      
+      if (error) {
+        showNotification('加载数据失败', 'error');
+        console.error('Error loading data:', error);
+        return;
+      }
+      
+      // 初始化数据
+      state.guests = data.guests || [];
+      state.tables = data.tables || [];
+      
+      // 渲染数据
+      renderGuests();
+      renderTables();
+      updateCounters();
+    }
+    
+    // 保存数据
+    async function saveData() {
+      if (!state.planId) return;
+      
+      const { error } = await supabase
+        .from('seating_plans')
+        .update({ 
+          guests: state.guests,
+          tables: state.tables,
+          updated_at: new Date()
+        })
+        .eq('id', state.planId);
+      
+      if (error) {
+        showNotification('保存失败', 'error');
+        console.error('Error saving data:', error);
+        return false;
+      }
+      
+      showNotification('保存成功');
+      return true;
+    }
+    
+    // 渲染宾客列表
+    function renderGuests() {
+      elements.guestList.innerHTML = '';
+      
+      // 过滤宾客（这里简化处理，实际应根据搜索和筛选条件过滤）
+      const filteredGuests = state.guests.filter(guest => !guest.tableId);
+      
+      if (filteredGuests.length === 0) {
+        elements.emptyGuestState.classList.remove('hidden');
+        return;
+      }
+      
+      elements.emptyGuestState.classList.add('hidden');
+      
+      filteredGuests.forEach(guest => {
+        const guestEl = document.createElement('div');
+        guestEl.className = 'guest-item bg-gray-50 hover:bg-gray-100 p-2 rounded-md text-sm cursor-move transition-all border border-gray-200 hover:border-primary/30 flex justify-between items-center group';
+        guestEl.setAttribute('data-id', guest.id);
         
-        renderGuestList: function() {
-          const searchTerm = el.search.value.toLowerCase();
-          const activeCategory = utils.qs('.category-btn.active', el.categoryFilter).dataset.category;
-          
-          // 获取已入座宾客ID（仅来自可见桌）
-          const seatedIds = new Set();
-          state.tables.filter(table => table.visible).forEach(table => {
-            table.guests.forEach(id => seatedIds.add(id));
-          });
-          
-          // 筛选未入座宾客
-          let filteredGuests = state.guests.filter(g => !seatedIds.has(g.id));
-          
-          // 应用分类筛选
-          if (activeCategory !== 'all') {
-            filteredGuests = filteredGuests.filter(g => g.category === activeCategory);
-          }
-          
-          // 应用搜索筛选
-          if (searchTerm) {
-            filteredGuests = filteredGuests.filter(g => 
-              g.name.toLowerCase().includes(searchTerm)
-            );
-          }
-          
-          // 更新筛选结果显示
-          const totalPeople = filteredGuests.reduce((sum, g) => sum + g.count, 0);
-          el.filterCount.textContent = `${filteredGuests.length}组 (${totalPeople}人)`;
-          
-          // 渲染列表
-          el.guestList.innerHTML = filteredGuests.length 
-            ? filteredGuests.map(guest => `
-                <div class="guest" draggable="true" data-id="${guest.id}">
-                  <i class="fas fa-user"></i>
-                  <span>${utils.escapeHtml(guest.name)}</span>
-                  <span class="count">${guest.count}人</span>
-                  <span class="category ${guest.category}">${utils.getCategoryName(guest.category)}</span>
-                  <i class="fas fa-ellipsis-h tag"></i>
-                </div>
-              `).join('')
-            : '<div style="text-align:center; padding:10px; color:var(--muted);">没有符合条件的未入座宾客</div>';
-          
-          // 添加拖拽事件
-          utils.qsa('.guest', el.guestList).forEach(guestEl => {
-            guestEl.addEventListener('dragstart', e => {
-              state.draggingId = guestEl.dataset.id;
-              guestEl.classList.add('dragging');
-              e.dataTransfer.effectAllowed = 'move';
-            });
-            
-            guestEl.addEventListener('dragend', () => {
-              guestEl.classList.remove('dragging');
-              state.draggingId = null;
-            });
-          });
-        },
+        guestEl.innerHTML = `
+          <div>
+            <div class="font-medium">${escapeHtml(guest.name)}</div>
+            <div class="text-xs text-gray-500">${guest.peopleCount}人 · ${guest.category || '未分类'}</div>
+          </div>
+          <button class="delete-guest-btn text-gray-400 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity" data-id="${guest.id}">
+            <i class="fa fa-times"></i>
+          </button>
+        `;
         
-        renderTables: function() {
-          // 仅渲染所有桌子（包括隐藏桌），但隐藏桌会有特殊样式
-          el.canvas.innerHTML = state.tables.map(table => {
-            const occupied = this.getTableOccupiedSeats(table.id);
-            const hasConflict = occupied > table.capacity;
-            const chairCount = Math.max(table.capacity, 8); // 至少显示8个座位
-            const chairs = [];
-            
-            // 生成座位
-            for (let i = 0; i < chairCount; i++) {
-              const angle = (i / chairCount) * Math.PI * 2;
-              const radius = 110;
-              const x = Math.cos(angle) * radius + 110;
-              const y = Math.sin(angle) * radius + 110;
-              
-              // 分配宾客到座位
-              let guestId = i < table.guests.length ? table.guests[i] : null;
-              let guestName = '';
-              let guestCount = '';
-              let isEmpty = true;
-              let conflict = false;
-              
-              if (guestId) {
-                const guest = state.guests.find(g => g.id === guestId);
-                if (guest) {
-                  guestName = utils.shortName(guest.name);
-                  guestCount = guest.count > 1 ? `<span class="count">${guest.count}</span>` : '';
-                  isEmpty = false;
-                  conflict = occupied > table.capacity;
-                }
-              }
-              
-              chairs.push(`
-                <div class="chair ${isEmpty ? 'empty' : ''} ${conflict ? 'conflict' : ''}" 
-                     style="left:${x}px; top:${y}px"
-                     data-chair-index="${i}">
-                  ${isEmpty ? `座位 ${i+1}` : `${utils.escapeHtml(guestName)}${guestCount}`}
-                  ${!isEmpty ? `<span class="kick" data-guest-id="${guestId}">移走</span>` : ''}
-                </div>
-              `);
-            }
-            
-            return `
-              <div class="table-card ${hasConflict ? 'has-conflict' : ''} ${!table.visible ? 'hidden' : ''}" 
-                   data-table-id="${table.id}">
-                <div class="table-header">
-                  <div class="badge">${utils.escapeHtml(table.name)}</div>
-                  <div class="capacity">
-                    ${occupied}/${table.capacity} 人
-                    ${hasConflict ? '<span style="color:var(--error)">（超员）</span>' : ''}
-                  </div>
-                </div>
-                <div class="table-visual">
-                  <div class="round-wrap">
-                    <div class="round">${utils.escapeHtml(table.name)}</div>
-                    ${chairs.join('')}
-                  </div>
-                </div>
-                <div class="table-footer">
-                  <a class="link rename-table" data-table-id="${table.id}">重命名</a>
-                  <a class="link resize-table" data-table-id="${table.id}">改容量</a>
-                  <a class="link clear-table" data-table-id="${table.id}">清空</a>
-                  <div class="spacer"></div>
-                  <a class="link warn delete-table" data-table-id="${table.id}">删除</a>
-                </div>
+        elements.guestList.appendChild(guestEl);
+        
+        // 添加拖拽事件
+        setupGuestDragEvents(guestEl, guest);
+      });
+      
+      // 添加删除宾客事件
+      document.querySelectorAll('.delete-guest-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const guestId = btn.getAttribute('data-id');
+          deleteGuest(guestId);
+        });
+      });
+    }
+    
+    // 设置宾客拖拽事件
+    function setupGuestDragEvents(guestEl, guest) {
+      guestEl.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.delete-guest-btn')) return;
+        
+        state.isDragging = true;
+        state.draggedGuest = guest;
+        guestEl.classList.add('opacity-50', 'scale-95');
+        
+        // 创建拖动时的视觉提示
+        const ghostEl = guestEl.cloneNode(true);
+        ghostEl.style.position = 'fixed';
+        ghostEl.style.pointerEvents = 'none';
+        ghostEl.style.zIndex = '100';
+        ghostEl.style.opacity = '0.7';
+        document.body.appendChild(ghostEl);
+        
+        // 鼠标移动时更新幽灵元素位置
+        const handleMouseMove = (e) => {
+          if (!state.isDragging) return;
+          
+          ghostEl.style.left = `${e.clientX - ghostEl.offsetWidth / 2}px`;
+          ghostEl.style.top = `${e.clientY - ghostEl.offsetHeight / 2}px`;
+        };
+        
+        // 鼠标释放时处理
+        const handleMouseUp = (e) => {
+          state.isDragging = false;
+          guestEl.classList.remove('opacity-50', 'scale-95');
+          document.body.removeChild(ghostEl);
+          
+          // 检查是否拖到了桌位上
+          const tableEl = document.elementFromPoint(e.clientX, e.clientY).closest('.table-item:not(.placeholder-table)');
+          if (tableEl && state.draggedGuest) {
+            const tableId = tableEl.getAttribute('data-id');
+            assignGuestToTable(state.draggedGuest.id, tableId);
+          }
+          
+          // 移除事件监听
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+        
+        // 添加事件监听
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      });
+    }
+    
+    // 渲染桌位
+    function renderTables() {
+      elements.tableArea.innerHTML = '';
+      
+      state.tables.forEach(table => {
+        const tableEl = document.createElement('div');
+        tableEl.className = `table-item absolute bg-white rounded-lg shadow-card hover:shadow-card-hover border-2 ${table.isPlaceholder ? 'border-dashed border-gray-400 bg-white/30' : 'border-gray-200 hover:border-primary'} transition-all duration-200 p-2 w-48`;
+        tableEl.style.left = `${table.x}px`;
+        tableEl.style.top = `${table.y}px`;
+        tableEl.setAttribute('data-id', table.id);
+        
+        // 计算已入座人数
+        const seatedCount = state.guests
+          .filter(guest => guest.tableId === table.id)
+          .reduce((sum, guest) => sum + guest.peopleCount, 0);
+        
+        // 检查是否超员
+        const isOverCapacity = seatedCount > table.capacity && !table.isPlaceholder;
+        
+        // 桌位内容
+        let tableContent = '';
+        
+        if (table.isPlaceholder) {
+          // 占位桌
+          tableContent = `
+            <div class="text-center text-gray-500 text-sm font-medium">占位桌（不可用）</div>
+          `;
+        } else {
+          // 正常桌位
+          tableContent = `
+            <div class="flex justify-between items-center mb-1">
+              <div class="font-medium text-sm ${isOverCapacity ? 'text-danger' : ''}">${escapeHtml(table.name)}</div>
+              <div class="text-xs ${isOverCapacity ? 'text-danger font-medium' : 'text-gray-500'}">
+                ${seatedCount}/${table.capacity}人 ${isOverCapacity ? '(超员)' : ''}
+              </div>
+            </div>
+            <div class="text-xs text-gray-600 max-h-32 overflow-y-auto scrollbar-hide">
+          `;
+          
+          // 添加桌位上的宾客
+          const tableGuests = state.guests.filter(guest => guest.tableId === table.id);
+          tableGuests.forEach(guest => {
+            tableContent += `
+              <div class="flex justify-between items-center py-0.5 border-b border-gray-100">
+                <span>${escapeHtml(guest.name)} (${guest.peopleCount}人)</span>
+                <button class="remove-from-table-btn text-gray-400 hover:text-danger text-xs" data-guest-id="${guest.id}">
+                  <i class="fa fa-times"></i>
+                </button>
               </div>
             `;
-          }).join('');
-          
-          // 为可见桌添加事件监听
-          state.tables.filter(table => table.visible).forEach(table => {
-            const tableCard = utils.qs(`.table-card[data-table-id="${table.id}"]`);
-            if (!tableCard) return;
-            
-            // 桌子拖放事件
-            tableCard.addEventListener('dragover', e => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';
-            });
-            
-            tableCard.addEventListener('drop', e => {
-              e.preventDefault();
-              if (state.draggingId) {
-                eventBinder.addGuestToTable(state.draggingId, table.id);
-              }
-            });
-            
-            // 移走宾客
-            utils.qsa('.kick', tableCard).forEach(kickEl => {
-              kickEl.addEventListener('click', e => {
-                e.stopPropagation();
-                const guestId = kickEl.dataset.guestId;
-                eventBinder.removeGuestFromTable(guestId, table.id);
-              });
-            });
-            
-            // 重命名桌子
-            utils.qs('.rename-table', tableCard).addEventListener('click', e => {
-              e.stopPropagation();
-              eventBinder.renameTable(table.id);
-            });
-            
-            // 修改容量
-            utils.qs('.resize-table', tableCard).addEventListener('click', e => {
-              e.stopPropagation();
-              eventBinder.resizeTable(table.id);
-            });
-            
-            // 清空桌子
-            utils.qs('.clear-table', tableCard).addEventListener('click', e => {
-              e.stopPropagation();
-              eventBinder.clearTable(table.id);
-            });
-            
-            // 删除桌子
-            utils.qs('.delete-table', tableCard).addEventListener('click', e => {
-              e.stopPropagation();
-              eventBinder.deleteTable(table.id);
-            });
           });
           
-          // 为隐藏桌添加双击恢复事件
-          utils.qsa('.table-card.hidden').forEach(card => {
-            card.addEventListener('dblclick', e => {
-              e.stopPropagation();
-              const tableId = card.dataset.tableId;
-              const table = state.tables.find(t => t.id === tableId);
-              if (table) {
-                table.visible = true;
-                state.localChanges.tables.updated.push(table.id);
-                dataManager.scheduleSave();
-                this.render();
-                ui.showToast(`已恢复 ${table.name} 为可用桌`);
-              }
-            });
-          });
-        },
-        
-        getTableOccupiedSeats: function(tableId) {
-          const table = state.tables.find(t => t.id === tableId);
-          if (!table || !table.visible) return 0; // 隐藏桌返回0
-          
-          return table.guests.reduce((total, guestId) => {
-            const guest = state.guests.find(g => g.id === guestId);
-            return total + (guest ? guest.count : 1);
-          }, 0);
-        },
-        
-        updateStats: function() {
-          // 仅统计可见桌
-          const visibleTables = state.tables.filter(table => table.visible);
-          
-          const totalGroups = state.guests.length;
-          const totalPeople = state.guests.reduce((sum, g) => sum + g.count, 0);
-          
-          const occupiedSeats = visibleTables.reduce((sum, t) => 
-            sum + this.getTableOccupiedSeats(t.id), 0);
-          const unseatedPeople = totalPeople - occupiedSeats;
-          const fullTables = visibleTables.filter(t => 
-            this.getTableOccupiedSeats(t.id) >= t.capacity).length;
-          
-          // 分类统计
-          const categoryStats = {
-            family: 0,
-            friend: 0,
-            colleague: 0,
-            other: 0
-          };
-          
-          state.guests.forEach(guest => {
-            if (categoryStats[guest.category]) {
-              categoryStats[guest.category] += guest.count;
-            }
-          });
-          
-          // 更新统计信息
-          el.stats.innerHTML = `
-            <span class="pill">总组数：${totalGroups}</span>
-            <span class="pill">总人数：${totalPeople}</span>
-            <span class="pill">已入座：${occupiedSeats}</span>
-            <span class="pill">未入座：${unseatedPeople}</span>
-            <span class="pill">桌数（可用）：${visibleTables.length}/${state.tables.length}</span>
-            <span class="pill">满员桌：${fullTables}</span>
-            <span class="pill">家人：${categoryStats.family}</span>
-            <span class="pill">朋友：${categoryStats.friend}</span>
-            <span class="pill">同事：${categoryStats.colleague}</span>
-            <span class="pill">其他：${categoryStats.other}</span>
+          tableContent += `
+            </div>
+            <div class="mt-1 flex justify-end gap-1">
+              <button class="table-edit-btn text-gray-400 hover:text-primary text-xs p-1" title="编辑" data-id="${table.id}">
+                <i class="fa fa-pencil"></i>
+              </button>
+              <button class="table-clear-btn text-gray-400 hover:text-gray-600 text-xs p-1" title="清空" data-id="${table.id}">
+                <i class="fa fa-trash-o"></i>
+              </button>
+              <button class="table-delete-btn text-gray-400 hover:text-danger text-xs p-1" title="删除" data-id="${table.id}">
+                <i class="fa fa-remove"></i>
+              </button>
+            </div>
           `;
-        },
-        
-        updateBatchTableSelect: function() {
-          el.batchTableSelect.innerHTML = '<option value="">选择目标桌...</option>';
-          
-          // 仅添加可见桌子到下拉框
-          const visibleTables = state.tables.filter(table => table.visible);
-          visibleTables.forEach(table => {
-            const occupiedSeats = this.getTableOccupiedSeats(table.id);
-            const option = document.createElement('option');
-            option.value = table.id;
-            option.textContent = `${table.name} (${occupiedSeats}/${table.capacity})`;
-            option.disabled = occupiedSeats >= table.capacity;
-            el.batchTableSelect.appendChild(option);
-          });
-        },
-        
-        updatePlanInfo: function() {
-          if (state.planId) {
-            el.planIdLabel.textContent = state.planId.slice(0, 8) + '...';
-            const shareUrl = `${window.location.origin}${window.location.pathname}#plan=${state.planId}`;
-            el.shareTip.textContent = shareUrl.length > 30 
-              ? shareUrl.slice(0, 30) + '...' 
-              : shareUrl;
-          }
-        },
-        
-        displayConflicts: function(conflicts) {
-          el.conflictDetails.innerHTML = '';
-          
-          if (conflicts.guests.length === 0 && conflicts.tables.length === 0) {
-            el.conflictDetails.innerHTML = '<p>未检测到具体冲突，但数据版本不一致。</p>';
-            return;
-          }
-          
-          if (conflicts.guests.length > 0) {
-            const guestsSection = document.createElement('div');
-            guestsSection.innerHTML = `<h3>宾客信息冲突 (${conflicts.guests.length})</h3>`;
-            
-            conflicts.guests.forEach(conflict => {
-              const guestEl = document.createElement('div');
-              guestEl.className = 'conflict-group';
-              guestEl.innerHTML = `
-                <div class="conflict-item mine">
-                  <strong>我的更改:</strong> ${utils.escapeHtml(conflict.mine.name)} (${conflict.mine.count}人)
-                </div>
-                <div class="conflict-item theirs">
-                  <strong>其他人的更改:</strong> ${utils.escapeHtml(conflict.theirs.name)} (${conflict.theirs.count}人)
-                </div>
-              `;
-              guestsSection.appendChild(guestEl);
-            });
-            
-            el.conflictDetails.appendChild(guestsSection);
-          }
-          
-          if (conflicts.tables.length > 0) {
-            const tablesSection = document.createElement('div');
-            tablesSection.innerHTML = `<h3>桌位信息冲突 (${conflicts.tables.length})</h3>`;
-            
-            conflicts.tables.forEach(conflict => {
-              const tableEl = document.createElement('div');
-              tableEl.className = 'conflict-group';
-              tableEl.innerHTML = `
-                <div class="conflict-item mine">
-                  <strong>我的更改:</strong> ${utils.escapeHtml(conflict.mine.name)} (容量: ${conflict.mine.capacity})
-                </div>
-                <div class="conflict-item theirs">
-                  <strong>其他人的更改:</strong> ${utils.escapeHtml(conflict.theirs.name)} (容量: ${conflict.theirs.capacity})
-                </div>
-              `;
-              tablesSection.appendChild(tableEl);
-            });
-            
-            el.conflictDetails.appendChild(tablesSection);
-          }
-        },
-        
-        updateChart: function() {
-          // 仅使用可见桌数据
-          const visibleTables = state.tables.filter(table => table.visible);
-          const seatedIds = new Set(visibleTables.flatMap(t => t.guests));
-          
-          // 分类统计
-          const categoryStats = {
-            family: { total: 0, seated: 0 },
-            friend: { total: 0, seated: 0 },
-            colleague: { total: 0, seated: 0 },
-            other: { total: 0, seated: 0 }
-          };
-          
-          state.guests.forEach(guest => {
-            if (categoryStats[guest.category]) {
-              categoryStats[guest.category].total += guest.count;
-              if (seatedIds.has(guest.id)) {
-                categoryStats[guest.category].seated += guest.count;
-              }
-            }
-          });
-          
-          // 桌子占用统计
-          const tableStats = visibleTables.map(table => ({
-            name: table.name,
-            occupied: this.getTableOccupiedSeats(table.id),
-            capacity: table.capacity
-          }));
         }
+        
+        tableEl.innerHTML = tableContent;
+        elements.tableArea.appendChild(tableEl);
+        
+        // 如果不是占位桌，添加拖动功能
+        if (!table.isPlaceholder) {
+          setupTableDragEvents(tableEl, table);
+        } else {
+          // 占位桌双击恢复
+          tableEl.addEventListener('dblclick', () => {
+            restorePlaceholderTable(table.id);
+          });
+        }
+      });
+      
+      // 添加桌位操作事件
+      setupTableActionEvents();
+    }
+    
+    // 设置桌位拖动事件
+    function setupTableDragEvents(tableEl, table) {
+      let initialX, initialY;
+      let currentX = table.x;
+      let currentY = table.y;
+      let isDragging = false;
+      
+      tableEl.addEventListener('mousedown', (e) => {
+        // 如果点击的是按钮，不触发拖动
+        if (e.target.closest('button')) return;
+        
+        isDragging = true;
+        tableEl.classList.add('scale-95', 'opacity-70');
+        
+        // 计算初始位置
+        initialX = e.clientX - currentX;
+        initialY = e.clientY - currentY;
+        
+        // 添加事件监听
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      });
+      
+      function handleMouseMove(e) {
+        if (!isDragging) return;
+        
+        e.preventDefault();
+        currentX = e.clientX - initialX;
+        currentY = e.clientY - initialY;
+        
+        // 更新位置
+        tableEl.style.left = `${currentX}px`;
+        tableEl.style.top = `${currentY}px`;
+      }
+      
+      function handleMouseUp() {
+        if (!isDragging) return;
+        
+        isDragging = false;
+        tableEl.classList.remove('scale-95', 'opacity-70');
+        
+        // 保存新位置
+        updateTablePosition(table.id, currentX, currentY);
+        
+        // 移除事件监听
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      }
+    }
+    
+    // 设置桌位操作事件
+    function setupTableActionEvents() {
+      // 编辑桌位
+      document.querySelectorAll('.table-edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tableId = btn.getAttribute('data-id');
+          editTable(tableId);
+        });
+      });
+      
+      // 清空桌位
+      document.querySelectorAll('.table-clear-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tableId = btn.getAttribute('data-id');
+          clearTable(tableId);
+        });
+      });
+      
+      // 删除桌位
+      document.querySelectorAll('.table-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tableId = btn.getAttribute('data-id');
+          showConfirmDialog(
+            '删除桌位', 
+            '确定要删除这个桌位吗？桌位上的宾客将被移回未入座列表。',
+            () => deleteTable(tableId)
+          );
+        });
+      });
+      
+      // 从桌位移除宾客
+      document.querySelectorAll('.remove-from-table-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const guestId = btn.getAttribute('data-guest-id');
+          removeGuestFromTable(guestId);
+        });
+      });
+    }
+    
+    // 更新计数器
+    function updateCounters() {
+      // 宾客总数
+      const totalGuestCount = state.guests.reduce((sum, guest) => sum + guest.peopleCount, 0);
+      elements.guestCount.textContent = `${state.guests.length}人 (共${totalGuestCount}位)`;
+      elements.totalPeople.textContent = totalGuestCount;
+      
+      // 桌位总数
+      elements.totalTables.textContent = state.tables.filter(table => !table.isPlaceholder).length;
+    }
+    
+    // 检查空状态
+    function checkEmptyStates() {
+      if (state.guests.filter(guest => !guest.tableId).length === 0) {
+        elements.emptyGuestState.classList.remove('hidden');
+      } else {
+        elements.emptyGuestState.classList.add('hidden');
+      }
+    }
+    
+    // 添加宾客
+    function addGuest(name, peopleCount = 1, category = '') {
+      const newGuest = {
+        id: Date.now().toString(),
+        name,
+        peopleCount: parseInt(peopleCount) || 1,
+        category: category.trim() || '',
+        tableId: null
       };
-
-      // 事件绑定器
-      window.eventBinder = {
-        bind: function() {
-          // 添加宾客
-          el.addGuestsBtn.addEventListener('click', () => this.addGuests());
-          
-          // 清空未入座宾客
-          el.clearGuestsBtn.addEventListener('click', () => this.clearUnseatedGuests());
-          
-          // 添加桌子
-          el.addTableBtn.addEventListener('click', () => this.addTable());
-          
-          // 自动排座
-          el.autoSeatBtn.addEventListener('click', () => this.handleAutoSeat());
-          
-          // 随机打乱
-          el.shuffleBtn.addEventListener('click', () => this.shuffleGuests());
-          
-          // 导出数据
-          el.exportBtn.addEventListener('click', () => dataManager.exportData(el.exportFormat.value));
-          
-          // 导入数据
-          el.importFile.addEventListener('change', (e) => this.handleFileImport(e));
-          el.confirmImportBtn.addEventListener('click', () => this.confirmImport());
-          
-          // 打印
-          el.printBtn.addEventListener('click', () => window.print());
-          
-          // 重置全部
-          el.resetAllBtn.addEventListener('click', () => this.resetAll());
-          
-          // 分享链接
-          el.shareBtn.addEventListener('click', () => this.shareLink());
-          
-          // 列数调整
-          el.colsRange.addEventListener('input', (e) => ui.setCols(e.target.value));
-          el.colsNumber.addEventListener('change', (e) => ui.setCols(e.target.value));
-          
-          // 分类筛选
-          utils.qsa('.category-btn', el.categoryFilter).forEach(btn => {
-            btn.addEventListener('click', () => {
-              utils.qsa('.category-btn', el.categoryFilter).forEach(b => b.classList.remove('active'));
-              btn.classList.add('active');
-              renderer.renderGuestList();
-            });
-          });
-          
-          // 搜索
-          el.search.addEventListener('input', () => renderer.renderGuestList());
-          
-          // 批量移动
-          el.batchMoveBtn.addEventListener('click', () => this.batchMoveGuests());
-          
-          // 初始化列数
-          const savedCols = localStorage.getItem('seating_cols');
-          if (savedCols) ui.setCols(savedCols);
-          
-          // 监听数据变化
-          this.setupRealtimeUpdates();
-        },
+      
+      state.guests.push(newGuest);
+      renderGuests();
+      updateCounters();
+      saveData();
+      showNotification(`已添加宾客: ${name}`);
+    }
+    
+    // 批量添加宾客
+    function batchAddGuests(text) {
+      const lines = text.trim().split('\n');
+      let addedCount = 0;
+      
+      lines.forEach(line => {
+        if (!line.trim()) return;
         
-        addGuests: function() {
-          const text = el.bulkNames.value.trim();
-          if (!text) {
-            ui.showToast('请输入宾客姓名', 'warning');
-            return;
-          }
-          
-          const category = el.guestCategory.value;
-          const lines = text.split('\n').filter(line => line.trim() !== '');
-          let added = 0;
-          
-          lines.forEach(line => {
-            // 解析姓名、人数和分类
-            const match = line.match(/^\s*(.+?)\s*(\d+)?\s*(?:[（(](.*?)[)）])?\s*$/);
-            if (!match) return;
-            
-            const name = match[1].trim();
-            const count = match[2] ? parseInt(match[2], 10) : 1;
-            let guestCategory = category;
-            
-            // 如果行内指定了分类，使用行内的
-            if (match[3]) {
-              const catText = match[3].toLowerCase();
-              if (catText.includes('家')) guestCategory = 'family';
-              else if (catText.includes('朋')) guestCategory = 'friend';
-              else if (catText.includes('同')) guestCategory = 'colleague';
-              else guestCategory = 'other';
-            }
-            
-            // 验证
-            const nameCheck = validator.name(name);
-            if (!nameCheck.valid) {
-              ui.showToast(`"${name}" 无效: ${nameCheck.message}`, 'error');
-              return;
-            }
-            
-            const countCheck = validator.count(count);
-            if (!countCheck.valid) {
-              ui.showToast(`"${name}" 的人数无效: ${countCheck.message}`, 'error');
-              return;
-            }
-            
-            // 添加宾客
-            const newGuest = {
-              id: utils.uid(),
-              name,
-              count,
-              category: guestCategory,
-              related: []
-            };
-            
-            state.guests.push(newGuest);
-            state.localChanges.guests.added.push(newGuest.id);
-            added++;
-          });
-          
-          if (added > 0) {
-            el.bulkNames.value = '';
-            dataManager.scheduleSave();
-            renderer.render();
-            ui.showToast(`已添加 ${added} 组宾客`);
-          }
-        },
+        // 解析格式：姓名 [人数(可选)] (分类(可选))
+        const regex = /^([^()\d]+?)\s*(\d+)?\s*(\(([^)]+)\))?$/;
+        const match = line.match(regex);
         
-        clearUnseatedGuests: function() {
-          // 获取已入座宾客ID（仅来自可见桌）
-          const seatedIds = new Set();
-          state.tables.filter(table => table.visible).forEach(table => {
-            table.guests.forEach(id => seatedIds.add(id));
-          });
+        if (match) {
+          const name = match[1].trim();
+          const peopleCount = match[2] ? parseInt(match[2]) : 1;
+          const category = match[4] || '';
           
-          // 保存要删除的宾客ID
-          const toRemove = state.guests
-            .filter(g => !seatedIds.has(g.id))
-            .map(g => g.id);
-          
-          if (toRemove.length === 0) {
-            ui.showToast('没有可清空的未入座宾客', 'info');
-            return;
+          if (name) {
+            addGuest(name, peopleCount, category);
+            addedCount++;
           }
-          
-          if (!confirm(`确定要清空 ${toRemove.length} 组未入座宾客吗？`)) {
-            return;
+        } else {
+          // 无法解析的格式，作为简单姓名处理
+          const name = line.trim();
+          if (name) {
+            addGuest(name);
+            addedCount++;
           }
-          
-          // 移除未入座宾客
-          state.guests = state.guests.filter(g => seatedIds.has(g.id));
-          state.localChanges.guests.removed.push(...toRemove);
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          ui.showToast(`已清空 ${toRemove.length} 组未入座宾客`);
-        },
-        
-        addTable: function() {
-          const name = el.tableName.value.trim() || `新桌 ${state.tables.length + 1}`;
-          const capacity = parseInt(el.tableCap.value, 10) || 10;
-          
-          const nameCheck = validator.tableName(name);
-          if (!nameCheck.valid) {
-            ui.showToast(nameCheck.message, 'error');
-            return;
-          }
-          
-          const capCheck = validator.capacity(capacity);
-          if (!capCheck.valid) {
-            ui.showToast(capCheck.message, 'error');
-            return;
-          }
-          
-          const newTable = {
-            id: utils.uid(),
-            name,
-            capacity,
-            guests: [],
-            visible: true // 新桌子默认为可见
-          };
-          
-          state.tables.push(newTable);
-          state.localChanges.tables.added.push(newTable.id);
-          
-          el.tableName.value = '';
-          dataManager.scheduleSave();
-          renderer.render();
-          ui.showToast(`已添加 ${name} (容量: ${capacity}人)`);
-        },
-        
-        addGuestToTable: function(guestId, tableId) {
-          const guest = state.guests.find(g => g.id === guestId);
-          const table = state.tables.find(t => t.id === tableId);
-          
-          if (!guest || !table || !table.visible) return; // 不允许添加到隐藏桌
-          
-          // 检查是否已在该桌
-          if (table.guests.includes(guestId)) return;
-          
-          // 检查是否已在其他可见桌
-          const otherTables = state.tables.filter(t => t.id !== tableId && t.visible);
-          otherTables.forEach(otherTable => {
-            const index = otherTable.guests.indexOf(guestId);
-            if (index !== -1) {
-              otherTable.guests.splice(index, 1);
-              state.localChanges.tables.updated.push(otherTable.id);
-            }
-          });
-          
-          // 添加到当前桌
-          table.guests.push(guestId);
-          state.localChanges.tables.updated.push(table.id);
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          ui.showToast(`${guest.name} 已安排到 ${table.name}`);
-        },
-        
-        removeGuestFromTable: function(guestId, tableId) {
-          const guest = state.guests.find(g => g.id === guestId);
-          const table = state.tables.find(t => t.id === tableId);
-          
-          if (!guest || !table) return;
-          
-          const index = table.guests.indexOf(guestId);
-          if (index !== -1) {
-            table.guests.splice(index, 1);
-            state.localChanges.tables.updated.push(table.id);
-            
-            dataManager.scheduleSave();
-            renderer.render();
-            ui.showToast(`${guest.name} 已从 ${table.name} 移走`);
-          }
-        },
-        
-        renameTable: function(tableId) {
-          const table = state.tables.find(t => t.id === tableId);
-          if (!table || !table.visible) return; // 不允许重命名隐藏桌
-          
-          const newName = prompt('请输入新的桌名', table.name);
-          if (newName === null) return;
-          
-          const trimmed = newName.trim();
-          if (!trimmed) {
-            ui.showToast('桌名不能为空', 'error');
-            return;
-          }
-          
-          const nameCheck = validator.tableName(trimmed);
-          if (!nameCheck.valid) {
-            ui.showToast(nameCheck.message, 'error');
-            return;
-          }
-          
-          table.name = trimmed;
-          state.localChanges.tables.updated.push(table.id);
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          ui.showToast(`桌名已更新为 ${trimmed}`);
-        },
-        
-        resizeTable: function(tableId) {
-          const table = state.tables.find(t => t.id === tableId);
-          if (!table || !table.visible) return; // 不允许修改隐藏桌容量
-          
-          const newCap = prompt('请输入新的容量', table.capacity);
-          if (newCap === null) return;
-          
-          const cap = parseInt(newCap, 10);
-          const capCheck = validator.capacity(cap);
-          
-          if (!capCheck.valid) {
-            ui.showToast(capCheck.message, 'error');
-            return;
-          }
-          
-          table.capacity = cap;
-          state.localChanges.tables.updated.push(table.id);
-          
-          // 检查是否需要移除宾客
-          const occupied = renderer.getTableOccupiedSeats(table.id);
-          if (occupied > cap) {
-            ui.showToast(`桌容量已修改为 ${cap} 人，当前超员 ${occupied - cap} 人`, 'warning');
-          }
-          
-          dataManager.scheduleSave();
-          renderer.render();
-        },
-        
-        clearTable: function(tableId) {
-          const table = state.tables.find(t => t.id === tableId);
-          if (!table || !table.visible) return; // 不允许清空隐藏桌
-          
-          if (table.guests.length === 0) {
-            ui.showToast('该桌已为空', 'info');
-            return;
-          }
-          
-          if (!confirm(`确定要清空 ${table.name} 的所有宾客吗？`)) {
-            return;
-          }
-          
-          table.guests = [];
-          state.localChanges.tables.updated.push(table.id);
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          ui.showToast(`${table.name} 已清空`);
-        },
-        
-        deleteTable: function(tableId) {
-          const table = state.tables.find(t => t.id === tableId);
-          if (!table || !table.visible) return; // 不允许删除隐藏桌
-          
-          if (!confirm(`确定要删除 ${table.name} 吗？桌内宾客将变为未入座状态。`)) {
-            return;
-          }
-          
-          // 从列表中移除桌子
-          const index = state.tables.indexOf(table);
-          if (index !== -1) {
-            state.tables.splice(index, 1);
-            state.localChanges.tables.removed.push(table.id);
-            
-            dataManager.scheduleSave();
-            renderer.render();
-            ui.showToast(`${table.name} 已删除`);
-          }
-        },
-        
-        handleAutoSeat: function() {
-          // 获取已入座宾客ID（仅来自可见桌）
-          const seatedIds = new Set();
-          state.tables.filter(table => table.visible).forEach(table => {
-            table.guests.forEach(id => seatedIds.add(id));
-          });
-          
-          const pending = state.guests.filter(g => !seatedIds.has(g.id));
-          if (!pending.length) {
-            ui.showToast('没有未入座的宾客', 'info');
-            return;
-          }
-          
-          // 仅使用可见桌
-          const visibleTables = state.tables.filter(table => table.visible);
-          if (!visibleTables.length) {
-            ui.showToast('没有可用的桌子（所有桌子已隐藏）', 'warning');
-            return;
-          }
-          
-          // 计算容量
-          const totalRequired = pending.reduce((sum, g) => sum + g.count, 0);
-          const totalCapacity = visibleTables.reduce((sum, t) => sum + t.capacity, 0);
-          const occupiedSeats = visibleTables.reduce((sum, t) => 
-            sum + renderer.getTableOccupiedSeats(t.id), 0);
-          const availableCapacity = totalCapacity - occupiedSeats;
-          
-          if (totalRequired > availableCapacity && 
-              !confirm(`座位不足，还需要 ${totalRequired - availableCapacity} 个座位，是否继续？`)) {
-            return;
-          }
-          
-          ui.showLoading('正在自动排座...');
-          
-          setTimeout(() => {
-            try {
-              // 复制可见桌用于修改
-              const newVisibleTables = visibleTables.map(t => ({ ...t, guests: [...t.guests] }));
-              const groupByCat = el.groupByCategory.checked;
-              
-              if (groupByCat) {
-                // 按类别分组排座
-                const guestsByCategory = {};
-                pending.forEach(g => {
-                  if (!guestsByCategory[g.category]) guestsByCategory[g.category] = [];
-                  guestsByCategory[g.category].push(g);
-                });
-                
-                Object.values(guestsByCategory).forEach(categoryGuests => {
-                  this.assignGuestsToTables(categoryGuests, newVisibleTables);
-                });
-              } else {
-                // 不分组排座
-                this.assignGuestsToTables(pending, newVisibleTables);
-              }
-              
-              // 更新原表数据
-              newVisibleTables.forEach(updatedTable => {
-                const originalTable = state.tables.find(t => t.id === updatedTable.id);
-                if (originalTable) {
-                  originalTable.guests = updatedTable.guests;
-                  state.localChanges.tables.updated.push(originalTable.id);
-                }
-              });
-              
-              dataManager.scheduleSave();
-              renderer.render();
-              renderer.updateChart();
-              ui.showToast(`自动排座完成，已安排 ${pending.length} 组宾客到 ${visibleTables.length} 张可用桌`);
-            } catch (error) {
-              ui.showToast('自动排座失败，请重试', 'error');
-            } finally {
-              ui.hideLoading();
-            }
-          }, 600);
-        },
-        
-        assignGuestsToTables: function(guests, tables) {
-          // 按优化选项排序桌子
-          let sortedTables = [...tables];
-          
-          if (el.optimizeSeating.checked) {
-            // 按剩余容量升序排列，优先填满小桌子
-            sortedTables.sort((a, b) => {
-              const remainingA = a.capacity - renderer.getTableOccupiedSeats(a.id);
-              const remainingB = b.capacity - renderer.getTableOccupiedSeats(b.id);
-              return remainingA - remainingB;
-            });
-          } else {
-            // 按原顺序排列
-            sortedTables = [...tables];
-          }
-          
-          // 分配宾客
-          guests.forEach(guest => {
-            // 尝试找到合适的桌子
-            let assigned = false;
-            
-            for (const table of sortedTables) {
-              const currentOccupied = renderer.getTableOccupiedSeats(table.id);
-              
-              // 如果能容纳
-              if (currentOccupied + guest.count <= table.capacity) {
-                table.guests.push(guest.id);
-                assigned = true;
-                break;
-              }
-            }
-            
-            // 如果没有找到合适的桌子，仍然分配到第一个桌子
-            if (!assigned) {
-              sortedTables[0].guests.push(guest.id);
-            }
-          });
-        },
-        
-        shuffleGuests: function() {
-          // 随机打乱未入座宾客
-          const seatedIds = new Set();
-          state.tables.filter(table => table.visible).forEach(table => {
-            table.guests.forEach(id => seatedIds.add(id));
-          });
-          
-          const unseated = state.guests.filter(g => !seatedIds.has(g.id));
-          
-          // 打乱顺序
-          for (let i = unseated.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [state.guests[state.guests.indexOf(unseated[i])], 
-             state.guests[state.guests.indexOf(unseated[j])]] = 
-            [state.guests[state.guests.indexOf(unseated[j])], 
-             state.guests[state.guests.indexOf(unseated[i])]];
-          }
-          
-          renderer.renderGuestList();
-          ui.showToast('已随机打乱未入座宾客顺序');
-        },
-        
-        handleFileImport: function(e) {
-          const file = e.target.files[0];
-          if (!file) return;
-          
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            try {
-              const content = event.target.result;
-              const results = dataManager.parseImportData(content, file.name);
-              
-              // 显示预览
-              el.importPreview.innerHTML = '';
-              el.importPreview.style.display = 'block';
-              el.confirmImportBtn.style.display = 'block';
-              
-              if (results.valid.length > 0) {
-                const validSection = document.createElement('div');
-                validSection.innerHTML = `<strong style="color:var(--success)">可导入 (${results.valid.length} 项):</strong>`;
-                results.valid.slice(0, 10).forEach((item, i) => {
-                  const itemEl = document.createElement('div');
-                  itemEl.className = 'import-preview-item';
-                  itemEl.textContent = item.name 
-                    ? `${item.name} (${item.count}人, ${utils.getCategoryName(item.category)})`
-                    : `${item.name} (容量: ${item.capacity})`;
-                  validSection.appendChild(itemEl);
-                });
-                if (results.valid.length > 10) {
-                  const moreEl = document.createElement('div');
-                  moreEl.className = 'import-preview-item';
-                  moreEl.textContent = `... 还有 ${results.valid.length - 10} 项未显示`;
-                  validSection.appendChild(moreEl);
-                }
-                el.importPreview.appendChild(validSection);
-              }
-              
-              if (results.invalid.length > 0) {
-                const invalidSection = document.createElement('div');
-                invalidSection.innerHTML = `<strong style="color:var(--error)">无法导入 (${results.invalid.length} 项):</strong>`;
-                results.invalid.slice(0, 10).forEach((item, i) => {
-                  const itemEl = document.createElement('div');
-                  itemEl.className = 'import-preview-item error';
-                  itemEl.textContent = `行 ${item.line}: ${item.error}`;
-                  invalidSection.appendChild(itemEl);
-                });
-                if (results.invalid.length > 10) {
-                  const moreEl = document.createElement('div');
-                  moreEl.className = 'import-preview-item error';
-                  moreEl.textContent = `... 还有 ${results.invalid.length - 10} 项未显示`;
-                  invalidSection.appendChild(moreEl);
-                }
-                el.importPreview.appendChild(invalidSection);
-              }
-              
-              // 保存解析结果供确认导入使用
-              el.confirmImportBtn.dataset.importResults = JSON.stringify(results);
-            } catch (error) {
-              ui.showToast('解析文件失败: ' + error.message, 'error');
-            }
-          };
-          
-          reader.readAsText(file);
-        },
-        
-        confirmImport: function() {
-          const resultsJson = el.confirmImportBtn.dataset.importResults;
-          if (!resultsJson) return;
-          
-          const results = JSON.parse(resultsJson);
-          if (results.valid.length === 0) {
-            ui.showToast('没有可导入的有效数据', 'warning');
-            return;
-          }
-          
-          const replace = confirm(`发现 ${results.valid.length} 项有效数据，${results.invalid.length} 项无效数据。是否替换现有数据？\n取消则合并到现有数据中。`);
-          
-          const importResult = dataManager.applyImport(results, replace);
-          ui.showToast(`导入完成：成功添加 ${importResult.added} 项，跳过 ${importResult.skipped} 项`);
-          
-          // 重置导入控件
-          el.importFile.value = '';
-          el.importPreview.style.display = 'none';
-          el.confirmImportBtn.style.display = 'none';
-          el.confirmImportBtn.removeAttribute('data-import-results');
-        },
-        
-        resetAll: function() {
-          if (!confirm('确定要重置所有数据吗？这将清除当前所有的宾客和桌位信息！')) {
-            return;
-          }
-          
-          const seeded = dataManager.seed();
-          state.guests = seeded.guests;
-          state.tables = seeded.tables;
-          
-          // 标记所有数据为已更改
-          state.localChanges = {
-            guests: {
-              added: state.guests.map(g => g.id),
-              updated: [],
-              removed: []
-            },
-            tables: {
-              added: state.tables.map(t => t.id),
-              updated: [],
-              removed: []
-            }
-          };
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          renderer.updateChart();
-          ui.showToast('已重置所有数据为初始状态');
-        },
-        
-        shareLink: function() {
-          if (!state.planId) {
-            ui.showToast('请先创建计划', 'warning');
-            return;
-          }
-          
-          const shareUrl = `${window.location.origin}${window.location.pathname}#plan=${state.planId}`;
-          navigator.clipboard.writeText(shareUrl).then(() => {
-            ui.showToast('分享链接已复制到剪贴板');
-          }).catch(() => {
-            // 降级方案
-            const tempInput = document.createElement('input');
-            document.body.appendChild(tempInput);
-            tempInput.value = shareUrl;
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-            ui.showToast('分享链接已复制到剪贴板');
-          });
-        },
-        
-        batchMoveGuests: function() {
-          const targetTableId = el.batchTableSelect.value;
-          if (!targetTableId) {
-            ui.showToast('请选择目标桌', 'warning');
-            return;
-          }
-          
-          const targetTable = state.tables.find(t => t.id === targetTableId);
-          if (!targetTable || !targetTable.visible) {
-            ui.showToast('所选桌子不可用', 'error');
-            return;
-          }
-          
-          // 获取已入座宾客ID（仅来自可见桌）
-          const seatedIds = new Set();
-          state.tables.filter(table => table.visible).forEach(table => {
-            table.guests.forEach(id => seatedIds.add(id));
-          });
-          
-          // 获取未入座宾客
-          const unseated = state.guests.filter(g => !seatedIds.has(g.id));
-          if (!unseated.length) {
-            ui.showToast('没有未入座的宾客可移动', 'info');
-            return;
-          }
-          
-          // 计算所需容量
-          const requiredCapacity = unseated.reduce((sum, g) => sum + g.count, 0);
-          const currentOccupied = renderer.getTableOccupiedSeats(targetTableId);
-          
-          if (currentOccupied + requiredCapacity > targetTable.capacity &&
-              !confirm(`目标桌容量不足，需要 ${requiredCapacity} 个座位，但仅剩 ${targetTable.capacity - currentOccupied} 个座位，是否继续？`)) {
-            return;
-          }
-          
-                    // 从其他可见桌移除未入座宾客（理论上不应该存在，但做个保障）
-          const otherTables = state.tables.filter(t => t.id !== targetTableId && t.visible);
-          otherTables.forEach(table => {
-            let changed = false;
-            table.guests = table.guests.filter(guestId => {
-              if (!seatedIds.has(guestId)) {
-                changed = true;
-                return false;
-              }
-              return true;
-            });
-            if (changed) {
-              state.localChanges.tables.updated.push(table.id);
-            }
-          });
-          
-          // 添加所有未入座宾客到目标桌
-          const guestIds = unseated.map(g => g.id);
-          targetTable.guests = [...targetTable.guests, ...guestIds];
-          state.localChanges.tables.updated.push(targetTable.id);
-          
-          dataManager.scheduleSave();
-          renderer.render();
-          ui.showToast(`已将 ${unseated.length} 组未入座宾客移动到 ${targetTable.name}`);
-        },
-        
-        setupRealtimeUpdates: function() {
-          if (!state.planId) return;
-          
-          // 监听计划数据变化
-          const planSubscription = supabase
-            .channel(`plan:${state.planId}`)
-            .on(
-              'postgres_changes',
-              { event: '*', schema: 'public', table: 'plans', filter: `id=eq.${state.planId}` },
-              (payload) => {
-                if (payload.eventType === 'UPDATE' && !state.writing) {
-                  // 数据有更新，重新加载
-                  if (payload.new.version > state.version) {
-                    ui.showLoading('检测到更新，正在同步...');
-                    setTimeout(() => {
-                      dataManager.loadPlan().then(() => {
-                        ui.hideLoading();
-                        ui.showToast('已同步最新数据');
-                      });
-                    }, 800);
-                  }
-                }
-              }
-            )
-            .subscribe();
-            
-          // 监听在线用户变化
-          const presenceSubscription = supabase
-            .channel(`presence:${state.planId}`)
-            .on('presence', { event: 'sync' }, () => {
-              const presences = presenceSubscription.presenceState();
-              const users = Object.keys(presences).reduce((acc, key) => {
-                return [...acc, ...presences[key]];
-              }, []);
-              state.onlineUsers = users.length;
-              el.onlineUsers.textContent = `在线：${state.onlineUsers}人`;
-            })
-            .subscribe();
-            
-          // 加入在线用户列表
-          presenceSubscription.track({
-            id: localStorage.getItem('user_id') || (() => {
-              const id = utils.uid();
-              localStorage.setItem('user_id', id);
-              return id;
-            })(),
-            joined: new Date().toISOString()
-          });
-          
-          // 页面关闭时清理
-          window.addEventListener('beforeunload', () => {
-            supabase.removeChannel(planSubscription);
-            supabase.removeChannel(presenceSubscription);
-          });
         }
+      });
+      
+      if (addedCount > 0) {
+        showNotification(`已批量添加 ${addedCount} 位宾客`);
+      }
+    }
+    
+    // 删除宾客
+    function deleteGuest(guestId) {
+      const guestIndex = state.guests.findIndex(g => g.id === guestId);
+      if (guestIndex === -1) return;
+      
+      const guestName = state.guests[guestIndex].name;
+      state.guests.splice(guestIndex, 1);
+      
+      renderGuests();
+      renderTables();
+      updateCounters();
+      saveData();
+      showNotification(`已删除宾客: ${guestName}`);
+    }
+    
+    // 添加桌位
+    function addTable(name, capacity) {
+      const tableArea = elements.tableArea;
+      const newTable = {
+        id: Date.now().toString(),
+        name,
+        capacity: parseInt(capacity) || 6,
+        x: 50 + (state.tables.length % 5) * 200,
+        y: 50 + Math.floor(state.tables.length / 5) * 150,
+        isPlaceholder: false
       };
-
-      // 初始化应用
-      (async () => {
-        try {
-          await dataManager.ensurePlan();
-          await dataManager.loadPlan();
-          eventBinder.bind();
-        } catch (error) {
-          console.error('初始化失败:', error);
-          ui.showToast('初始化失败，请刷新页面重试', 'error');
+      
+      state.tables.push(newTable);
+      renderTables();
+      updateCounters();
+      saveData();
+      showNotification(`已添加桌位: ${name}`);
+      
+      return newTable.id;
+    }
+    
+    // 编辑桌位
+    function editTable(tableId) {
+      const table = state.tables.find(t => t.id === tableId);
+      if (!table || table.isPlaceholder) return;
+      
+      // 填充表单
+      document.getElementById('table-modal-title').textContent = '编辑桌位';
+      document.getElementById('table-name').value = table.name;
+      document.getElementById('table-capacity').value = table.capacity;
+      
+      // 保存当前桌位ID
+      elements.tableModal.setAttribute('data-table-id', tableId);
+      
+      // 显示模态框
+      elements.tableModal.classList.remove('hidden');
+      elements.tableModal.classList.add('flex');
+    }
+    
+    // 更新桌位位置
+    function updateTablePosition(tableId, x, y) {
+      const tableIndex = state.tables.findIndex(t => t.id === tableId);
+      if (tableIndex === -1) return;
+      
+      state.tables[tableIndex].x = x;
+      state.tables[tableIndex].y = y;
+      saveData();
+    }
+    
+    // 清空桌位
+    function clearTable(tableId) {
+      // 将桌位上的所有宾客移回未入座列表
+      state.guests.forEach(guest => {
+        if (guest.tableId === tableId) {
+          guest.tableId = null;
         }
-      })();
-    </script>
-  </body>
+      });
+      
+      renderGuests();
+      renderTables();
+      saveData();
+      
+      const table = state.tables.find(t => t.id === tableId);
+      if (table) {
+        showNotification(`已清空桌位: ${table.name}`);
+      }
+    }
+    
+    // 删除桌位
+    function deleteTable(tableId) {
+      const tableIndex = state.tables.findIndex(t => t.id === tableId);
+      if (tableIndex === -1) return;
+      
+      const tableName = state.tables[tableIndex].name;
+      
+      // 将桌位上的所有宾客移回未入座列表
+      state.guests.forEach(guest => {
+        if (guest.tableId === tableId) {
+          guest.tableId = null;
+        }
+      });
+      
+      // 删除桌位
+      state.tables.splice(tableIndex, 1);
+      
+      renderGuests();
+      renderTables();
+      updateCounters();
+      saveData();
+      showNotification(`已删除桌位: ${tableName}`);
+    }
+    
+    // 将桌位转为占位桌
+    function convertToPlaceholderTable(tableId) {
+      const tableIndex = state.tables.findIndex(t => t.id === tableId);
+      if (tableIndex === -1) return;
+      
+      // 将桌位上的所有宾客移回未入座列表
+      state.guests.forEach(guest => {
+        if (guest.tableId === tableId) {
+          guest.tableId = null;
+        }
+      });
+      
+      // 标记为占位桌
+      state.tables[tableIndex].isPlaceholder = true;
+      
+      renderGuests();
+      renderTables();
+      saveData();
+    }
+    
+    // 恢复占位桌为正常桌位
+    function restorePlaceholderTable(tableId) {
+      const tableIndex = state.tables.findIndex(t => t.id === tableId);
+      if (tableIndex === -1) return;
+      
+      // 恢复为正常桌位
+      state.tables[tableIndex].isPlaceholder = false;
+      
+      renderTables();
+      saveData();
+      showNotification('已恢复为可用桌位');
+    }
+    
+    // 将宾客分配到桌位
+    function assignGuestToTable(guestId, tableId) {
+      const guest = state.guests.find(g => g.id === guestId);
+      const table = state.tables.find(t => t.id === tableId && !t.isPlaceholder);
+      
+      if (!guest || !table) return;
+      
+      // 检查是否会超员
+      const currentSeated = state.guests
+        .filter(g => g.tableId === tableId)
+        .reduce((sum, g) => sum + g.peopleCount, 0);
+      
+      const wouldExceed = currentSeated + guest.peopleCount > table.capacity;
+      
+      // 如果会超员，显示警告但仍允许分配
+      if (wouldExceed) {
+        showNotification(`桌位 "${table.name}" 将超员`, 'warning');
+      }
+      
+      // 分配宾客
+      guest.tableId = tableId;
+      
+      renderGuests();
+      renderTables();
+      saveData();
+    }
+    
+    // 将宾客从桌位移除
+    function removeGuestFromTable(guestId) {
+      const guest = state.guests.find(g => g.id === guestId);
+      if (!guest) return;
+      
+      const table = state.tables.find(t => t.id === guest.tableId);
+      const tableName = table ? table.name : '';
+      
+      guest.tableId = null;
+      
+      renderGuests();
+      renderTables();
+      saveData();
+      
+      if (tableName) {
+        showNotification(`${guest.name} 已从 ${tableName} 移走`);
+      }
+    }
+    
+    // 自动排座
+    function autoArrangeSeats(groupByCategory = false, optimizeUtilization = false) {
+      // 获取所有未入座宾客
+      const unassignedGuests = [...state.guests.filter(g => !g.tableId)];
+      if (unassignedGuests.length === 0) {
+        showNotification('没有需要排座的宾客');
+        return;
+      }
+      
+      // 获取所有可用桌位
+      const availableTables = state.tables
+        .filter(t => !t.isPlaceholder)
+        .map(t => ({
+          ...t,
+          currentCount: state.guests
+            .filter(g => g.tableId === t.id)
+            .reduce((sum, g) => sum + g.peopleCount, 0)
+        }));
+      
+      if (availableTables.length === 0) {
+        showNotification('没有可用的桌位', 'warning');
+        return;
+      }
+      
+      // 如果需要按类别分组
+      if (groupByCategory) {
+        // 按类别分组
+        const guestsByCategory = {};
+        unassignedGuests.forEach(guest => {
+          const category = guest.category || '未分类';
+          if (!guestsByCategory[category]) {
+            guestsByCategory[category] = [];
+          }
+          guestsByCategory[category].push(guest);
+        });
+        
+        // 为每个类别分配桌位
+        Object.values(guestsByCategory).forEach(categoryGuests => {
+          assignGuestsToTables(categoryGuests, [...availableTables], optimizeUtilization);
+        });
+      } else {
+        // 不分组，直接分配
+        assignGuestsToTables(unassignedGuests, [...availableTables], optimizeUtilization);
+      }
+      
+      renderGuests();
+      renderTables();
+      saveData();
+      showNotification('自动排座完成');
+    }
+    
+    // 将宾客分配到桌位的辅助函数
+    function assignGuestsToTables(guests, tables, optimizeUtilization) {
+      // 如果需要优化利用率，按剩余容量排序（从小到大）
+      if (optimizeUtilization) {
+        tables.sort((a, b) => {
+          const remainingA = a.capacity - a.currentCount;
+          const remainingB = b.capacity - b.currentCount;
+          return remainingA - remainingB;
+        });
+      }
+      
+      // 为每位宾客分配桌位
+      guests.forEach(guest => {
+        // 找到第一个能容纳的桌位
+        for (const table of tables) {
+          const remainingCapacity = table.capacity - table.currentCount;
+          if (remainingCapacity >= guest.peopleCount) {
+            // 分配到这个桌位
+            guest.tableId = table.id;
+            table.currentCount += guest.peopleCount;
+            break;
+          }
+        }
+        
+        // 如果没有找到能完全容纳的桌位，就找第一个可用桌位（允许超员）
+        if (!guest.tableId) {
+          const firstAvailableTable = tables.find(t => !t.isPlaceholder);
+          if (firstAvailableTable) {
+            guest.tableId = firstAvailableTable.id;
+            firstAvailableTable.currentCount += guest.peopleCount;
+          }
+        }
+      });
+    }
+    
+    // 重置所有数据
+    function resetAllData() {
+      // 恢复默认示例数据
+      state.guests = [
+        { id: '1', name: '张三', peopleCount: 2, category: '家人', tableId: null },
+        { id: '2', name: '李四', peopleCount: 1, category: '朋友', tableId: null },
+        { id: '3', name: '王五', peopleCount: 3, category: '同事', tableId: null },
+        { id: '4', name: '赵六', peopleCount: 2, category: '家人', tableId: null },
+        { id: '5', name: '钱七', peopleCount: 1, category: '朋友', tableId: null },
+      ];
+      
+      state.tables = [
+        { id: '101', name: '主桌', capacity: 8, x: 50, y: 50, isPlaceholder: false },
+        { id: '102', name: '1号桌', capacity: 6, x: 250, y: 50, isPlaceholder: false },
+        { id: '103', name: '2号桌', capacity: 6, x: 450, y: 50, isPlaceholder: false },
+        { id: '104', name: '3号桌', capacity: 4, x: 50, y: 200, isPlaceholder: false },
+        { id: '105', name: '4号桌', capacity: 4, x: 250, y: 200, isPlaceholder: false },
+      ];
+      
+      renderGuests();
+      renderTables();
+      updateCounters();
+      saveData();
+      showNotification('已重置为示例数据');
+    }
+    
+    // 导出数据
+    function exportData(format = 'json') {
+      const exportData = {
+        planId: state.planId,
+        guests: state.guests,
+        tables: state.tables,
+        exportTime: new Date().toISOString()
+      };
+      
+      let dataStr, fileName;
+      
+      if (format === 'json') {
+        dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+        fileName = `座位计划_${state.planId.substring(0, 8)}_${new Date().toLocaleDateString()}.json`;
+      } else if (format === 'csv') {
+        // 生成CSV格式
+        let csvContent = "姓名,人数,分类,桌位\n";
+        
+        // 已入座宾客
+        state.guests.forEach(guest => {
+          const table = state.tables.find(t => t.id === guest.tableId);
+          const tableName = table ? table.name : '';
+          csvContent += `${escapeCsv(guest.name)},${guest.peopleCount},${escapeCsv(guest.category || '')},${escapeCsv(tableName)}\n`;
+        });
+        
+        dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+        fileName = `座位计划_${state.planId.substring(0, 8)}_${new Date().toLocaleDateString()}.csv`;
+      }
+      
+      // 创建下载链接
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", fileName);
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      
+      showNotification(`已导出${format.toUpperCase()}文件`);
+    }
+    
+    // 打印功能
+    function printPlan() {
+      // 打开新窗口用于打印
+      const printWindow = window.open('', '_blank');
+      
+      // 构建打印内容
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>座位计划打印</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { text-align: center; color: #333; }
+              .table { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 15px; display: inline-block; vertical-align: top; min-width: 180px; }
+              .table h3 { margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+              .guest { font-size: 14px; margin-bottom: 5px; }
+              .placeholder { background-color: #f5f5f5; border-style: dashed; }
+              .summary { margin: 20px 0; padding: 10px; background-color: #f9f9f9; border-radius: 8px; }
+            </style>
+          </head>
+          <body>
+            <h1>座位计划</h1>
+            <div class="summary">
+              <p>计划ID: ${state.planId.substring(0, 8)}...</p>
+              <p>总桌位: ${state.tables.filter(t => !t.isPlaceholder).length} 个 | 总人数: ${state.guests.reduce((sum, g) => sum + g.peopleCount, 0)} 人</p>
+              <p>打印时间: ${new Date().toLocaleString()}</p>
+            </div>
+            <div id="print-tables">
+              ${generatePrintTablesHtml()}
+            </div>
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+      // 等待窗口加载完成后打印
+      printWindow.onload = function() {
+        printWindow.print();
+        // 打印后关闭窗口
+        setTimeout(() => printWindow.close(), 100);
+      };
+    }
+    
+    // 生成打印用的桌位HTML
+    function generatePrintTablesHtml() {
+      let html = '';
+      
+      state.tables.forEach(table => {
+        if (table.isPlaceholder) return; // 跳过占位桌
+        
+        // 计算已入座人数
+        const seatedCount = state.guests
+          .filter(guest => guest.tableId === table.id)
+          .reduce((sum, guest) => sum + guest.peopleCount, 0);
+        
+        // 桌位内容
+        html += `<div class="table">`;
+        html += `<h3>${table.name} (${seatedCount}/${table.capacity}人)</h3>`;
+        
+        // 添加桌位上的宾客
+        const tableGuests = state.guests.filter(guest => guest.tableId === table.id);
+        if (tableGuests.length > 0) {
+          tableGuests.forEach(guest => {
+            html += `<div class="guest">${guest.name} (${guest.peopleCount}人) ${guest.category ? `[${guest.category}]` : ''}</div>`;
+          });
+        } else {
+          html += `<div class="guest">空桌</div>`;
+        }
+        
+        html += `</div>`;
+      });
+      
+      return html;
+    }
+    
+    // 设置协作功能
+    function setupCollaboration() {
+      if (!state.planId) return;
+      
+      // 监听数据变化
+      const subscription = supabase
+        .channel(`seating_plan:${state.planId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'seating_plans', filter: `id=eq.${state.planId}` },
+          (payload) => {
+            // 数据变化时重新加载
+            if (payload.eventType === 'UPDATE') {
+              loadData();
+            }
+          }
+        )
+        .subscribe();
+      
+      // 在线状态管理（简化版）
+      const presence = supabase
+        .channel(`presence:${state.planId}`)
+        .on('presence', { event: 'sync' }, () => {
+          const presences = presence.presenceState();
+          const users = Object.values(presences).flat();
+          state.onlineUsers = users.length;
+          elements.onlineCount.textContent = state.onlineUsers;
+        })
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            // 追踪当前用户
+            await presence.track({
+              id: Date.now().toString(),
+              online: true,
+              updated_at: new Date().toISOString()
+            });
+          }
+        });
+    }
+    
+    // 显示通知
+    function showNotification(message, type = 'success') {
+      elements.notificationMessage.textContent = message;
+      
+      // 设置图标
+      if (type === 'success') {
+        elements.notificationIcon.className = 'fa fa-check-circle text-green-400 mr-2';
+      } else if (type === 'error') {
+        elements.notificationIcon.className = 'fa fa-times-circle text-red-400 mr-2';
+      } else if (type === 'warning') {
+        elements.notificationIcon.className = 'fa fa-exclamation-triangle text-yellow-400 mr-2';
+      }
+      
+      // 显示通知
+      elements.notification.classList.remove('translate-y-20', 'opacity-0');
+      elements.notification.classList.add('translate-y-0', 'opacity-100');
+      
+      // 3秒后隐藏
+      setTimeout(() => {
+        elements.notification.classList.remove('translate-y-0', 'opacity-100');
+        elements.notification.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+    
+    // 显示确认对话框
+    function showConfirmDialog(title, message, onConfirm) {
+      elements.confirmDialog.setAttribute('data-callback', onConfirm.name);
+      elements.confirmTitle.textContent = title;
+      elements.confirmMessage.textContent = message;
+      
+      // 保存回调函数
+      window.confirmCallback = onConfirm;
+      
+      // 显示对话框
+      elements.confirmDialog.classList.remove('hidden');
+      elements.confirmDialog.classList.add('flex');
+    }
+    
+    // 设置事件监听器
+    function setupEventListeners() {
+      // 添加宾客
+      document.getElementById('add-guest-btn').addEventListener('click', () => {
+        const guestText = document.getElementById('new-guest').value.trim();
+        if (guestText) {
+          batchAddGuests(guestText);
+          document.getElementById('new-guest').value = '';
+        }
+      });
+      
+      // 按回车添加宾客
+      document.getElementById('new-guest').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          document.getElementById('add-guest-btn').click();
+        }
+      });
+      
+      // 批量添加宾客
+      document.getElementById('batch-add-btn').addEventListener('click', () => {
+        elements.batchAddModal.classList.remove('hidden');
+        elements.batchAddModal.classList.add('flex');
+        document.getElementById('batch-guests').focus();
+      });
+      
+      // 关闭批量添加模态框
+      document.getElementById('close-batch-modal').addEventListener('click', () => {
+        elements.batchAddModal.classList.remove('flex');
+        elements.batchAddModal.classList.add('hidden');
+      });
+      
+      // 确认批量添加
+      document.getElementById('confirm-batch-add').addEventListener('click', () => {
+        const batchText = document.getElementById('batch-guests').value;
+        if (batchText.trim()) {
+          batchAddGuests(batchText);
+          document.getElementById('batch-guests').value = '';
+        }
+        elements.batchAddModal.classList.remove('flex');
+        elements.batchAddModal.classList.add('hidden');
+      });
+      
+      // 添加桌位
+      document.getElementById('add-table-btn').addEventListener('click', () => {
+        document.getElementById('table-modal-title').textContent = '添加桌位';
+        document.getElementById('table-name').value = '';
+        document.getElementById('table-capacity').value = '6';
+        elements.tableModal.removeAttribute('data-table-id');
+        
+        elements.tableModal.classList.remove('hidden');
+        elements.tableModal.classList.add('flex');
+        document.getElementById('table-name').focus();
+      });
+      
+      // 关闭桌位模态框
+      document.getElementById('close-table-modal').addEventListener('click', () => {
+        elements.tableModal.classList.remove('flex');
+        elements.tableModal.classList.add('hidden');
+      });
+      
+      // 确认添加/编辑桌位
+      document.getElementById('confirm-table').addEventListener('click', () => {
+        const tableName = document.getElementById('table-name').value.trim();
+        const tableCapacity = document.getElementById('table-capacity').value.trim();
+        
+        if (!tableName || !tableCapacity || isNaN(tableCapacity) || parseInt(tableCapacity) < 1) {
+          showNotification('请输入有效的桌位名称和容量', 'warning');
+          return;
+        }
+        
+        const tableId = elements.tableModal.getAttribute('data-table-id');
+        
+        if (tableId) {
+          // 编辑现有桌位
+          const tableIndex = state.tables.findIndex(t => t.id === tableId);
+          if (tableIndex !== -1) {
+            const oldName = state.tables[tableIndex].name;
+            state.tables[tableIndex].name = tableName;
+            state.tables[tableIndex].capacity = parseInt(tableCapacity);
+            
+            renderTables();
+            saveData();
+            showNotification(`已更新桌位: ${oldName} → ${tableName}`);
+          }
+        } else {
+          // 添加新桌位
+          addTable(tableName, tableCapacity);
+        }
+        
+        elements.tableModal.classList.remove('flex');
+        elements.tableModal.classList.add('hidden');
+      });
+      
+      // 自动排座
+      document.getElementById('auto-arrange-btn').addEventListener('click', () => {
+        elements.arrangeModal.classList.remove('hidden');
+        elements.arrangeModal.classList.add('flex');
+      });
+      
+      // 关闭自动排座模态框
+      document.getElementById('close-arrange-modal').addEventListener('click', () => {
+        elements.arrangeModal.classList.remove('flex');
+        elements.arrangeModal.classList.add('hidden');
+      });
+      
+      // 确认自动排座
+      document.getElementById('confirm-arrange').addEventListener('click', () => {
+        const groupByCategory = document.getElementById('group-by-category').checked;
+        const optimizeUtilization = document.getElementById('optimize-utilization').checked;
+        
+        autoArrangeSeats(groupByCategory, optimizeUtilization);
+        
+        elements.arrangeModal.classList.remove('flex');
+        elements.arrangeModal.classList.add('hidden');
+      });
+      
+      // 分享链接
+      document.getElementById('share-btn').addEventListener('click', () => {
+        const shareLink = window.location.href;
+        document.getElementById('share-link').value = shareLink;
+        
+        elements.shareModal.classList.remove('hidden');
+        elements.shareModal.classList.add('flex');
+      });
+      
+      // 关闭分享模态框
+      document.getElementById('close-share-modal').addEventListener('click', () => {
+        elements.shareModal.classList.remove('flex');
+        elements.shareModal.classList.add('hidden');
+      });
+      
+      // 复制分享链接
+      document.getElementById('copy-link-btn').addEventListener('click', () => {
+        const shareLink = document.getElementById('share-link');
+        shareLink.select();
+        document.execCommand('copy');
+        
+        showNotification('链接已复制到剪贴板');
+        elements.shareModal.classList.remove('flex');
+        elements.shareModal.classList.add('hidden');
+      });
+      
+      // 移动端菜单
+      document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+        elements.mobileMenu.classList.remove('hidden');
+      });
+      
+      // 关闭移动端菜单
+      document.getElementById('close-mobile-menu').addEventListener('click', () => {
+        elements.mobileMenu.classList.add('hidden');
+      });
+      
+      // 点击移动端菜单外部关闭
+      elements.mobileMenu.addEventListener('click', (e) => {
+        if (e.target === elements.mobileMenu) {
+          elements.mobileMenu.classList.add('hidden');
+        }
+      });
+      
+      // 清空未入座宾客
+      document.getElementById('clear-unassigned-btn').addEventListener('click', () => {
+        const unassignedCount = state.guests.filter(g => !g.tableId).length;
+        if (unassignedCount === 0) {
+          showNotification('没有未入座的宾客');
+          return;
+        }
+        
+        showConfirmDialog(
+          '清空未入座宾客',
+          `确定要删除所有未入座的宾客吗？（共${unassignedCount}位）`,
+          () => {
+            state.guests = state.guests.filter(g => g.tableId !== null);
+            renderGuests();
+            updateCounters();
+            saveData();
+            showNotification(`已删除 ${unassignedCount} 位未入座宾客`);
+          }
+        );
+      });
+      
+      // 重置全部
+      document.getElementById('reset-all-btn').addEventListener('click', () => {
+        showConfirmDialog(
+          '重置全部数据',
+          '确定要重置所有数据吗？当前的座位计划将被替换为示例数据。',
+          resetAllData
+        );
+      });
+      
+      // 保存
+      document.getElementById('save-btn').addEventListener('click', saveData);
+      
+      // 导出
+      document.getElementById('export-btn').addEventListener('click', () => {
+        // 简单实现，实际可显示格式选择
+        exportData('json');
+      });
+      
+      // 打印
+      document.getElementById('print-btn').addEventListener('click', printPlan);
+      
+      // 关闭确认对话框
+      document.getElementById('cancel-confirm').addEventListener('click', () => {
+        elements.confirmDialog.classList.remove('flex');
+        elements.confirmDialog.classList.add('hidden');
+        window.confirmCallback = null;
+      });
+      
+      // 确认操作
+      document.getElementById('accept-confirm').addEventListener('click', () => {
+        if (window.confirmCallback && typeof window.confirmCallback === 'function') {
+          window.confirmCallback();
+        }
+        
+        elements.confirmDialog.classList.remove('flex');
+        elements.confirmDialog.classList.add('hidden');
+        window.confirmCallback = null;
+      });
+      
+      // 缩放控制
+      document.getElementById('zoom-in-btn').addEventListener('click', () => {
+        if (state.zoomLevel < 200) {
+          state.zoomLevel += 10;
+          updateZoom();
+        }
+      });
+      
+      document.getElementById('zoom-out-btn').addEventListener('click', () => {
+        if (state.zoomLevel > 50) {
+          state.zoomLevel -= 10;
+          updateZoom();
+        }
+      });
+      
+      document.getElementById('zoom-reset-btn').addEventListener('click', () => {
+        state.zoomLevel = 100;
+        updateZoom();
+      });
+      
+      // 分类筛选
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          // 移除所有按钮的活跃状态
+          document.querySelectorAll('.filter-btn').forEach(b => {
+            b.classList.remove('active', 'bg-primary', 'text-white');
+            b.classList.add('bg-gray-100', 'text-gray-700');
+          });
+          
+          // 设置当前按钮为活跃状态
+          btn.classList.add('active', 'bg-primary', 'text-white');
+          btn.classList.remove('bg-gray-100', 'text-gray-700');
+          
+          // 实际筛选逻辑在这里实现
+          const category = btn.textContent.trim();
+          // 简化处理，实际应根据分类筛选宾客
+          renderGuests();
+        });
+      });
+      
+      // 搜索宾客
+      document.getElementById('guest-search').addEventListener('input', () => {
+        // 实际搜索逻辑在这里实现
+        renderGuests();
+      });
+    }
+    
+    // 更新缩放级别
+    function updateZoom() {
+      elements.tableArea.style.transform = `scale(${state.zoomLevel / 100})`;
+      elements.tableArea.style.transformOrigin = 'top left';
+      document.getElementById('zoom-reset-btn').textContent = `${state.zoomLevel}%`;
+    }
+    
+    // 工具函数：转义HTML
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    // 工具函数：转义CSV内容
+    function escapeCsv(text) {
+      if (!text) return '';
+      if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    }
+    
+    // 初始化应用
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
 </html>
