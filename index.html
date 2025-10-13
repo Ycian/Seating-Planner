@@ -559,6 +559,35 @@
     .table-footer {display: none;}
   }
   
+  /* 宾客名单打印样式 */
+  @media print {
+    .print-list-container {
+      display: block !important;
+      width: 100%;
+      padding: 20px;
+    }
+    .print-table-section {
+      margin-bottom: 30px;
+      page-break-inside: avoid;
+    }
+    .print-table-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #000;
+    }
+    .print-guest-list {
+      font-size: 14px;
+      color: #000;
+      line-height: 1.6;
+    }
+  }
+  
+  /* 非打印状态下隐藏容器 */
+  .print-list-container {
+    display: none;
+  }
+  
   @media (max-width:920px){ 
     body{
       flex-direction:column; 
@@ -704,6 +733,10 @@
       <div class="row" style="margin-top:8px;">
         <button class="btn ghost" id="printBtn">
           <i class="fas fa-print"></i> 打印
+        </button>
+        <!-- 新增打印宾客名单按钮 -->
+        <button class="btn ghost" id="printListBtn">
+          <i class="fas fa-list-alt"></i> 打印宾客名单
         </button>
         <button class="btn warn" id="resetAllBtn">
           <i class="fas fa-exclamation-triangle"></i> 重置全部
