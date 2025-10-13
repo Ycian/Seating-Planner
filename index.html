@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>宾客座位规划系统</title>
+<title>宾客座位规划（支持人数 | 实时协作）</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+<!-- 引入Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
   :root{ 
@@ -21,17 +23,20 @@
     --success:#4cd964;
     --warning:#ffcc00;
     --error:#ff3b30;
+    --conflict-highlight: rgba(255, 59, 48, 0.15);
     /* 分类颜色 */
     --family:#4cd964;
     --friend:#ffcc00;
     --colleague:#6aa7ff;
     --other:#9f7bff;
   }
-  *{box-sizing:border-box; margin:0; padding:0} 
-  html,body{height:100%; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  *{box-sizing:border-box} 
+  html,body{height:100%}
   body{ 
+    margin:0; 
     background: radial-gradient(1200px 600px at 20% -10%, #1a2040 0, #0f1220 70%), var(--bg); 
     color:var(--text); 
+    font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; 
     display:flex; 
     gap:12px; 
     padding:12px; 
@@ -51,17 +56,26 @@
     overflow:hidden;
   }
   
+  /* 功能卡片样式 */
   .sidebar-section {
-    background:var(--card);
-    border-radius:12px;
-    padding:12px;
-    border:1px solid var(--border);
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
   }
   
-  h1{font-size:16px; margin:0 0 8px 0; display:flex; align-items:center; gap:6px}
+  .sidebar-section:hover {
+    border-color: rgba(255,255,255,0.15);
+  }
+  
+  h1{font-size:16px; margin:0 0 8px 0; letter-spacing:.5px; display:flex; align-items:center; gap:6px}
   h1 i {color: var(--accent);}
   
-  input, textarea, select{ 
+  .controls input[type="text"], 
+  .controls input[type="number"], 
+  textarea, 
+  input[type="file"]{ 
     width:100%; 
     padding:10px 12px; 
     border-radius:10px; 
@@ -69,11 +83,14 @@
     background:#0f1330; 
     color:var(--text); 
     outline:none; 
+    transition:border-color 0.2s;
   }
-  input:focus, textarea:focus {border-color: var(--accent);}
-  
+  .controls input:focus, textarea:focus {
+    border-color: var(--accent);
+  }
   .row{display:flex; gap:8px; flex-wrap:wrap}
   .btn{ 
+    appearance:none; 
     border:none; 
     cursor:pointer; 
     padding:10px 12px; 
@@ -81,6 +98,8 @@
     color:white; 
     background:linear-gradient(135deg,var(--accent),var(--accent-2)); 
     box-shadow:0 6px 20px rgba(106,167,255,.25); 
+    transition:.15s transform ease,.15s filter ease,.15s opacity ease; 
+    white-space:nowrap; 
     display:flex;
     align-items:center;
     justify-content:center;
@@ -90,23 +109,57 @@
   .btn:active{transform:translateY(1px)} 
   .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none}
   .btn.warn{background:linear-gradient(135deg,#ff8a8a,#ff6b6b)}
+  .btn.loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.8;
+  }
+  .btn.loading::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 1s ease-in-out infinite;
+  }
   
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* 改进的宾客列表样式 */
   .guest-list-container {
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    overflow:hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 200;
   }
   .guest-list {
-    flex:1;
-    overflow-y:auto;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    padding:8px;
-    border:1px dashed var(--border);
-    border-radius:12px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
     background:rgba(0,0,0,.12);
+    /* 确保滚动条美观 */
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) transparent;
+  }
+  .guest-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .guest-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .guest-list::-webkit-scrollbar-thumb {
+    background-color: var(--accent);
+    border-radius: 3px;
   }
   
   .guest{
@@ -118,23 +171,28 @@
     border-radius:10px; 
     background:var(--chip); 
     border:1px solid var(--border);
+    transition:all 0.2s;
+  }
+  .guest:hover {
+    border-color: rgba(255,255,255,0.2);
   }
   .guest.dragging{opacity:.6; transform:scale(0.98)} 
   .guest .tag{font-size:12px; color:var(--muted); margin-left:auto}
   .guest .count {
-    font-size:10px;
-    padding:2px 6px;
-    border-radius:4px;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
     background: rgba(255,255,255,0.1);
-    margin-right:4px;
+    margin-right: 4px;
   }
   .guest .category {
-    font-size:10px;
-    padding:2px 6px;
-    border-radius:4px;
-    font-weight:500;
-    margin-right:4px;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    margin-right: 4px;
   }
+  /* 分类标签颜色 */
   .category.family { background-color: rgba(76, 217, 100, 0.2); color: var(--family); }
   .category.friend { background-color: rgba(255, 204, 0, 0.2); color: var(--friend); }
   .category.colleague { background-color: rgba(106, 167, 255, 0.2); color: var(--colleague); }
@@ -146,9 +204,12 @@
     border:1px solid var(--border); 
     background:#0f1330; 
     color:var(--text);
+    transition:border-color 0.2s;
     width: 100%;
   }
-  
+  .search:focus {
+    border-color: var(--accent);
+  }
   .main{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px}
   .toolbar{ 
     background:var(--panel); 
@@ -171,7 +232,6 @@
     background: linear-gradient(135deg, rgba(106, 167, 255, 0.2), rgba(159, 123, 255, 0.2));
     border-color: var(--accent);
   }
-  
   .canvas{ 
     flex:1; 
     overflow:auto; 
@@ -188,33 +248,22 @@
     display:flex; 
     flex-direction:column; 
     gap:10px;
+    transition:all 0.2s;
   }
-  .table-card.hidden {
-    visibility: visible;
-    position: relative;
-    background: transparent;
-    border: 2px dashed rgba(255, 255, 255, 0.1);
-    pointer-events: none;
-    opacity: 0.6;
+  .table-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
-  .table-card.hidden .table-header,
-  .table-card.hidden .table-visual,
-  .table-card.hidden .table-footer {
-    display: none;
+  .table-card.has-conflict {
+    background: var(--conflict-highlight);
+    border-color: var(--error);
+    animation: pulse 2s infinite;
   }
-  .table-card.hidden::before {
-    content: '占位桌（不可用）';
-    visibility: visible;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: rgba(255, 255, 255, 0.3);
-    font-size: 14px;
-    text-align: center;
-    padding: 20px;
-    box-sizing: border-box;
+  
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
+    70% { box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
   }
   
   .table-header{ display:flex; align-items:center; gap:10px }
@@ -226,17 +275,19 @@
     border:1px solid var(--border) 
   }
   .capacity{ margin-left:auto; font-size:12px; color:var(--muted) }
-  
   .table-visual{ display:flex; align-items:center; justify-content:center; padding:10px 0 6px }
   .round-wrap{ position:relative; width:220px; height:220px; margin:auto }
   .round{ 
     position:absolute; 
-    left:50%; top:50%; 
+    left:50%; 
+    top:50%; 
     transform:translate(-50%,-50%); 
-    width:120px; height:120px; 
+    width:120px; 
+    height:120px; 
     border-radius:50%; 
     background:#2a2f68; 
     border:2px solid var(--border); 
+    box-shadow: inset 0 0 0 4px rgba(255,255,255,.05); 
     display:flex; 
     align-items:center; 
     justify-content:center; 
@@ -245,7 +296,8 @@
   }
   .chair{ 
     position:absolute; 
-    width:64px; height:28px; 
+    width:64px; 
+    height:28px; 
     border-radius:14px; 
     background:#222861; 
     border:1px solid var(--border); 
@@ -253,20 +305,33 @@
     align-items:center; 
     justify-content:center; 
     padding:0 6px; 
-    white-space: nowrap; 
+    white-space:nowrap; 
     overflow:hidden; 
     text-overflow:ellipsis;
+    transition:all 0.2s;
+  }
+  .chair:hover {
+    transform: scale(1.05);
+    z-index: 10;
   }
   .chair.empty{ opacity:.45; font-size:12px; color:var(--muted) }
   .chair.conflict {
     background: rgba(255, 59, 48, 0.3);
     border-color: var(--error);
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  }
+  
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px) scale(1.05); }
+    20%, 80% { transform: translateX(2px) scale(1.05); }
+    30%, 50%, 70% { transform: translateX(-3px) scale(1.05); }
+    40%, 60% { transform: translateX(3px) scale(1.05); }
   }
   
   .chair .count {
-    font-size:10px;
-    margin-left:4px;
-    color: rgba(255,255,255,0.7);
+    font-size: 10px;
+    margin-left: 4px;
+    color: rgba(255, 255, 255, 0.7);
   }
   .chair .kick{ 
     margin-left:6px; 
@@ -274,8 +339,12 @@
     cursor:pointer; 
     color:#f8b4b4; 
     font-size:12px;
+    opacity:0.7;
+    transition:opacity 0.2s;
   }
-  
+  .chair:hover .kick {
+    opacity:1;
+  }
   .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
   .spacer{flex:1} 
   .link{
@@ -283,180 +352,311 @@
     cursor:pointer; 
     text-decoration:underline; 
     font-size:12px;
+    transition:color 0.2s;
   }
-  
+  .link:hover {
+    color: var(--accent-2);
+  }
   .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap } 
   .grid-controls input[type="range"]{ width:160px }
   
+  /* 提示消息样式 */
   .toast-container {
     position: fixed;
-    top:20px;
-    right:20px;
-    z-index:1000;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .toast {
-    padding:12px 16px;
-    border-radius:8px;
-    color:white;
-    box-shadow:0 4px 12px rgba(0,0,0,0.2);
-    display:flex;
-    align-items:center;
-    gap:8px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
     animation: toastIn 0.3s ease forwards, toastOut 0.3s ease 2.7s forwards;
-    max-width:300px;
+    max-width: 300px;
   }
   .toast.success { background-color: var(--success); }
   .toast.error { background-color: var(--error); }
-  .toast.warning { background-color: var(--warning); color:#333; }
+  .toast.warning { background-color: var(--warning); color: #333; }
   .toast.info { background-color: var(--accent); }
   
-  @keyframes toastIn { from { transform: translateX(100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
-  @keyframes toastOut { from { transform: translateX(0); opacity:1; } to { transform: translateX(100%); opacity:0; } }
+  @keyframes toastIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes toastOut {
+    from { transform: translateX(0); opacity: 1; }
+    to { transform: translateX(100%); opacity: 0; }
+  }
   
+  /* 宾客分类选择器 - 增强样式 */
   .category-selector {
-    display:flex;
-    gap:6px;
-    margin-bottom:8px;
-    flex-wrap:wrap;
-    padding:6px;
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    padding: 6px;
     background: rgba(0,0,0,0.1);
-    border-radius:8px;
+    border-radius: 8px;
   }
   .category-btn {
-    padding:5px 10px;
-    border-radius:6px;
-    font-size:12px;
-    background:var(--chip);
-    border:1px solid var(--border);
-    cursor:pointer;
-    display:flex;
-    align-items:center;
-    gap:4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    background: var(--chip);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
-  .category-btn::before { content: '●'; font-size:8px; }
+  .category-btn::before {
+    content: '●';
+    font-size: 8px;
+  }
   .category-btn.family::before { color: var(--family); }
   .category-btn.friend::before { color: var(--friend); }
   .category-btn.colleague::before { color: var(--colleague); }
   .category-btn.other::before { color: var(--other); }
+  .category-btn:hover {
+    background: rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
   .category-btn.active {
     background: rgba(106, 167, 255, 0.2);
     border-color: var(--accent);
     color: var(--accent);
-    font-weight:500;
+    font-weight: 500;
   }
   
+  /* 批量操作菜单 */
+  .batch-actions {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  
+  /* 筛选结果提示 */
+  .filter-result {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 4px 0 8px 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  /* 导入预览 */
+  .import-preview {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    margin: 8px 0;
+    background: rgba(0,0,0,0.1);
+  }
+  .import-preview-item {
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 12px;
+  }
+  .import-preview-item:last-child {
+    border-bottom: none;
+  }
+  .import-preview .error {
+    color: var(--error);
+  }
+  
+  /* 冲突解决对话框 */
   .modal-backdrop {
-    position:fixed;
-    top:0; left:0;
-    width:100%; height:100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: rgba(0,0,0,0.7);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:2000;
-    opacity:0;
-    pointer-events:none;
-    transition:opacity 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
   }
   .modal-backdrop.active {
-    opacity:1;
-    pointer-events:all;
+    opacity: 1;
+    pointer-events: all;
   }
   .modal {
-    background:var(--panel);
-    border-radius:16px;
-    width:90%;
-    max-width:500px;
-    padding:20px;
-    border:1px solid var(--border);
+    background: var(--panel);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    padding: 20px;
+    border: 1px solid var(--border);
     transform: translateY(20px);
-    transition:transform 0.3s ease;
+    transition: transform 0.3s ease;
   }
-  .modal-backdrop.active .modal { transform: translateY(0); }
-  .modal h2 { margin-top:0; color:var(--text); display:flex; align-items:center; gap:8px; }
-  .modal h2 i { color:var(--error); }
-  .modal p { color:var(--muted); }
+  .modal-backdrop.active .modal {
+    transform: translateY(0);
+  }
+  .modal h2 {
+    margin-top: 0;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .modal h2 i {
+    color: var(--error);
+  }
+  .modal p {
+    color: var(--muted);
+  }
   .conflict-item {
-    background:var(--card);
-    border-radius:8px;
-    padding:10px;
-    margin:10px 0;
-    border:1px solid var(--border);
+    background: var(--card);
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid var(--border);
+  }
+  .conflict-item.theirs {
+    border-left: 3px solid var(--accent);
+  }
+  .conflict-item.mine {
+    border-left: 3px solid var(--success);
   }
   .modal-buttons {
-    display:flex;
-    gap:10px;
-    justify-content:flex-end;
-    margin-top:20px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
   }
   
+  /* 加载指示器 */
   .loading-indicator {
-    position:fixed;
-    top:50%; left:50%;
-    transform:translate(-50%,-50%);
-    z-index:1500;
-    background:var(--panel);
-    padding:20px;
-    border-radius:12px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    border:1px solid var(--border);
-    opacity:0;
-    pointer-events:none;
-    transition:opacity 0.3s ease;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1500;
+    background: var(--panel);
+    padding: 20px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
   }
   .loading-indicator.active {
-    opacity:1;
-    pointer-events:all;
+    opacity: 1;
+    pointer-events: all;
   }
   .loading-spinner {
-    width:20px; height:20px;
-    border:3px solid rgba(255,255,255,0.3);
-    border-radius:50%;
-    border-top-color:var(--accent);
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--accent);
     animation: spin 1s ease-in-out infinite;
   }
   
-  @keyframes spin { to { transform: rotate(360deg); } }
-  
+  /* 打印样式优化 */
   @media print {
-    body { background:white; color:black; display:block; padding:20px; overflow:visible; }
-    .sidebar, .toolbar { display:none !important; }
-    .main { width:100%; display:block; }
-    .canvas { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; padding:0; }
-    .table-card { background:white; border:1px solid #ccc; color:black; page-break-inside:avoid; }
-    .table-card.hidden { display:none !important; }
-    .round { background:#f0f0f0; border-color:#ccc; color:black; }
-    .chair { background:#f0f0f0; border-color:#ccc; color:black; }
-    .chair.empty { display:none; }
-    .table-footer { display:none; }
+    body {
+      background: white;
+      color: black;
+      display: block;
+      padding: 20px;
+      overflow: visible;
+    }
+    .sidebar, .toolbar {
+      display: none !important;
+    }
+    .main {
+      width: 100%;
+      display: block;
+    }
+    .canvas {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      padding: 0;
+    }
+    .table-card {
+      background: white;
+      border: 1px solid #ccc;
+      color: black;
+      page-break-inside: avoid;
+    }
+    .round {
+      background: #f0f0f0;
+      border-color: #ccc;
+      color: black;
+    }
+    .chair {
+      background: #f0f0f0;
+      border-color: #ccc;
+      color: black;
+    }
+    .chair.empty {
+      display: none;
+    }
+    .table-footer {
+      display: none;
+    }
   }
   
   @media (max-width:920px){ 
-    body{ flex-direction:column; overflow:auto; padding:10px } 
-    .sidebar{ width:auto; max-width:none; max-height:80vh; } 
-    .canvas{ grid-template-columns:repeat(1, minmax(260px,1fr)) } 
+    body{
+      flex-direction:column; 
+      overflow:auto; 
+      padding:10px
+    } 
+    .sidebar{
+      width:auto; 
+      max-width:none;
+      height: auto;
+      max-height: 80vh;
+    } 
+    .canvas{
+      grid-template-columns:repeat(1, minmax(260px,1fr))
+    } 
   }
 </style>
 </head>
 <body>
+  <!-- 提示消息容器 -->
   <div class="toast-container" id="toastContainer"></div>
   
+  <!-- 加载指示器 -->
   <div class="loading-indicator" id="loadingIndicator">
     <div class="loading-spinner"></div>
     <span id="loadingMessage">处理中...</span>
   </div>
   
+  <!-- 冲突解决对话框 -->
   <div class="modal-backdrop" id="conflictModal">
     <div class="modal">
       <h2><i class="fas fa-exclamation-triangle"></i> 检测到数据冲突</h2>
       <p>其他人也修改了这份座位表，您需要选择如何处理：</p>
       
-      <div id="conflictDetails"></div>
+      <div id="conflictDetails">
+        <!-- 冲突详情将在这里动态生成 -->
+      </div>
       
       <div class="modal-buttons">
         <button class="btn ghost" id="keepMineBtn">保留我的更改</button>
@@ -467,10 +667,12 @@
   </div>
 
   <aside class="sidebar">
+    <!-- 宾客管理区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-users"></i> 宾客管理</h1>
       <input id="search" class="search" type="text" placeholder="搜索姓名…" />
       
+      <!-- 宾客分类筛选 - 增强版 -->
       <div class="category-selector" id="categoryFilter">
         <div class="category-btn active" data-category="all">全部</div>
         <div class="category-btn family" data-category="family">家人</div>
@@ -479,11 +681,18 @@
         <div class="category-btn other" data-category="other">其他</div>
       </div>
       
-      <textarea id="bulkNames" rows="4" placeholder="批量粘贴姓名：每行一个；可带人数，如“张三 2”；可带分类，如“李四（同事）”"></textarea>
+      <!-- 筛选结果提示 -->
+      <div class="filter-result" id="filterResult">
+        <span>显示全部未入座宾客</span>
+        <span id="filterCount">0人</span>
+      </div>
       
+      <textarea id="bulkNames" rows="4" placeholder="批量粘贴姓名：每行一个；可带人数，如“张三 2”表示张三一行共2人；可带备注，如“李四 4（同事）”"></textarea>
+      
+      <!-- 宾客分类选择 -->
       <div>
         <label style="font-size:12px; color:var(--muted); margin-bottom:4px; display:block;">添加为：</label>
-        <select id="guestCategory">
+        <select id="guestCategory" style="width:100%; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
           <option value="family">家人</option>
           <option value="friend">朋友</option>
           <option value="colleague">同事</option>
@@ -495,47 +704,67 @@
         <button class="btn" id="addGuestsBtn">
           <i class="fas fa-user-plus"></i> 添加到名单
         </button>
-        <button class="btn ghost" id="clearGuestsBtn">
+        <button class="btn ghost" id="clearGuestsBtn" title="仅清空未入座列表，不影响桌上已入座">
           <i class="fas fa-trash"></i> 清空
         </button>
       </div>
     </div>
     
+    <!-- 桌位管理区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-utensils"></i> 桌位管理</h1>
       <div class="row">
         <input id="tableName" type="text" placeholder="桌名（如：1号桌）">
-        <input id="tableCap" type="number" min="1" value="10">
+        <input id="tableCap" type="number" min="1" value="10" title="座位数">
         <button class="btn" id="addTableBtn">
           <i class="fas fa-plus-square"></i> 新增
         </button>
       </div>
       
       <div class="row">
-        <button class="btn" id="autoSeatBtn">
+        <button class="btn" id="autoSeatBtn" title="按桌容量从上到下自动排座">
           <i class="fas fa-magic"></i> 自动排座
         </button>
-        <button class="btn ghost" id="shuffleBtn">
+        <button class="btn ghost" id="shuffleBtn" title="随机打散未入座名单">
           <i class="fas fa-random"></i> 打散
         </button>
       </div>
       
+      <!-- 自动排座高级选项 -->
       <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.1); border-radius:8px;">
         <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">自动排座选项：</label>
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
           <input type="checkbox" id="groupByCategory" checked>
           <label for="groupByCategory" style="font-size:12px;">按类别分组</label>
         </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" id="optimizeSeating">
+          <label for="optimizeSeating" style="font-size:12px;">优化座位利用率</label>
+        </div>
       </div>
     </div>
     
+    <!-- 批量操作区域 -->
+    <div class="sidebar-section">
+      <h1><i class="fas fa-layer-group"></i> 批量操作</h1>
+      <div class="row">
+        <select id="batchTableSelect" style="flex:1; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
+          <option value="">选择目标桌...</option>
+        </select>
+        <button class="btn ghost" id="batchMoveBtn" title="将所有未入座宾客移动到所选桌">
+          <i class="fas fa-arrow-right"></i> 移动全部
+        </button>
+      </div>
+    </div>
+    
+    <!-- 数据管理区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-database"></i> 数据管理</h1>
       <div class="row">
         <button class="btn ghost" id="exportBtn">
           <i class="fas fa-download"></i> 导出
         </button>
-        <select id="exportFormat">
+        <select id="exportFormat" style="padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
           <option value="json">JSON</option>
           <option value="csv">CSV</option>
         </select>
@@ -544,7 +773,7 @@
       <div style="margin-top:8px;">
         <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">导入：</label>
         <input id="importFile" type="file" accept=".json,.csv">
-        <div id="importPreview" style="max-height:200px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:8px; margin:8px 0; background:rgba(0,0,0,0.1); display:none;"></div>
+        <div id="importPreview" class="import-preview" style="display:none;"></div>
         <button class="btn ghost" id="confirmImportBtn" style="margin-top:8px; display:none;">确认导入</button>
       </div>
       
@@ -558,18 +787,19 @@
       </div>
     </div>
 	
+    <!-- 未入座宾客列表区域 - 占据剩余空间 -->
     <div class="sidebar-section guest-list-container">
       <h1><i class="fas fa-list"></i> 未入座宾客</h1>
-      <div id="guestList" class="guest-list"></div>
+      <div id="guestList" class="guest-list" aria-label="未入座列表"></div>
     </div>
   </aside>
 
   <main class="main">
     <div class="toolbar">
-      <div class="pill highlight">实时协作：分享链接给他人可共同编辑同一份座位表</div>
+      <div class="pill highlight">实时协作：把下面的分享链接发给同事/亲友，大家看到的是同一份座位表。</div>
     </div>
 
-    <div class="toolbar">
+    <div class="toolbar" style="gap:10px">
       <div class="grid-controls">
         <span>每排桌数：</span>
         <input id="colsRange" type="range" min="1" max="8" step="1" value="3">
@@ -578,1451 +808,15 @@
       <button class="btn" id="shareBtn">
         <i class="fas fa-share-alt"></i> 复制分享链接
       </button>
+      <span class="pill">链接：<span id="shareTip" style="opacity:.85"></span></span>
       <span class="pill">计划ID：<code id="planIdLabel"></code></span>
       <span class="pill" id="onlineUsers">在线：0人</span>
     </div>
 
-    <div id="canvas" class="canvas"></div>
+    <div id="canvas" class="canvas" aria-label="桌面画布"></div>
   </main>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      // 配置与初始化
-      const config = {
-        supabaseUrl: "https://dlgecgypzeucpfrcxdzq.supabase.co",
-        supabaseKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZ2VjZ3lwemV1Y3BmcmN4ZHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwODk4ODUsImV4cCI6MjA3MDY2NTg4NX0.xz0twrBoz9xh3X7LI2uati8EKlTEq3NpKhaorzuiyCE",
-        saveDelay: 500
-      };
-
-      // 初始化Supabase
-      const supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseKey);
-      
-      // 状态管理
-      window.state = {
-        guests: [],
-        tables: [],
-        planId: new URLSearchParams((location.hash || "").slice(1)).get("plan"),
-        version: 0,
-        onlineUsers: 0,
-        draggingId: null,
-        writing: false,
-        writeTimer: null
-      };
-
-      // DOM元素缓存
-      const el = {};
-      ['loadingIndicator', 'loadingMessage', 'toastContainer', 'search', 'bulkNames',
-       'addGuestsBtn', 'clearGuestsBtn', 'tableName', 'tableCap', 'addTableBtn',
-       'guestList', 'canvas', 'autoSeatBtn', 'shuffleBtn', 'exportBtn',
-       'exportFormat', 'importFile', 'importPreview', 'confirmImportBtn', 'printBtn',
-       'resetAllBtn', 'shareBtn', 'planIdLabel', 'colsRange', 'colsNumber',
-       'guestCategory', 'categoryFilter', 'groupByCategory',
-       'conflictModal', 'keepMineBtn', 'takeTheirsBtn', 'mergeChangesBtn',
-       'conflictDetails', 'onlineUsers'].forEach(id => {
-        el[id] = document.getElementById(id);
-      });
-
-      // 工具函数
-      const utils = {
-        uid: () => Math.random().toString(36).slice(2, 9),
-        qs: (s, r = document) => r.querySelector(s),
-        qsa: (s, r = document) => Array.from(r.querySelectorAll(s)),
-        escapeHtml: s => s.replace(/[&<>\"']/g, c => ({
-          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        }[c])),
-        shortName: s => (s.replace(/[（(].*?[)）]/g, '').trim()).length <= 4 
-          ? s : s.slice(0, 4),
-        isEqual: (a, b) => JSON.stringify(a) === JSON.stringify(b),
-        getCategoryName: category => ({
-          family: '家人', friend: '朋友', colleague: '同事', other: '其他'
-        }[category] || '其他'),
-        escapeCsv: value => {
-          if (typeof value !== 'string') return value;
-          return (value.includes(',') || value.includes('"') || value.includes('\n'))
-            ? `"${value.replace(/"/g, '""')}"` : value;
-        }
-      };
-
-      // 验证工具
-      const validator = {
-        name: name => {
-          if (!name || name.trim() === '') return { valid: false, message: '姓名不能为空' };
-          if (name.length > 50) return { valid: false, message: '姓名过长' };
-          return { valid: true };
-        },
-        count: count => {
-          const num = Number(count);
-          if (isNaN(num) || num < 1 || !Number.isInteger(num)) {
-            return { valid: false, message: '人数必须是大于0的整数' };
-          }
-          return { valid: true };
-        },
-        tableName: name => {
-          if (!name || name.trim() === '') return { valid: false, message: '桌名不能为空' };
-          if (name.length > 30) return { valid: false, message: '桌名过长' };
-          return { valid: true };
-        },
-        capacity: cap => {
-          const num = Number(cap);
-          if (isNaN(num) || num < 1 || !Number.isInteger(num)) {
-            return { valid: false, message: '容量必须是大于0的整数' };
-          }
-          return { valid: true };
-        }
-      };
-
-      // UI工具
-      const ui = {
-        showLoading: (message = '处理中...') => {
-          el.loadingMessage.textContent = message;
-          el.loadingIndicator.classList.add('active');
-        },
-        hideLoading: () => el.loadingIndicator.classList.remove('active'),
-        showToast: (message, type = 'success', duration = 3000) => {
-          const toast = document.createElement('div');
-          const icons = { success: 'check-circle', error: 'times-circle', warning: 'exclamation-circle', info: 'info-circle' };
-          toast.className = `toast ${type}`;
-          toast.innerHTML = `<i class="fas fa-${icons[type]}"></i><span>${message}</span>`;
-          el.toastContainer.appendChild(toast);
-          setTimeout(() => toast.remove(), duration);
-        },
-        setCols: n => {
-          n = Math.max(1, Math.min(8, Number(n) || 3));
-          document.documentElement.style.setProperty('--cols', n);
-          el.colsRange.value = n;
-          el.colsNumber.value = n;
-          localStorage.setItem('seating_cols', String(n));
-        }
-      };
-
-      // 数据管理
-      const dataManager = {
-        seed: () => ({
-          guests: [
-            { id: utils.uid(), name: '张三', count: 2, category: 'family' },
-            { id: utils.uid(), name: '李四', count: 3, category: 'friend' },
-            { id: utils.uid(), name: '王五', count: 1, category: 'colleague' },
-            { id: utils.uid(), name: '赵六', count: 2, category: 'family' },
-            { id: utils.uid(), name: '钱七', count: 4, category: 'friend' }
-          ],
-          tables: [
-            { id: utils.uid(), name: '1号桌', capacity: 10, guests: [], visible: true },
-            { id: utils.uid(), name: '2号桌', capacity: 10, guests: [], visible: true },
-            { id: utils.uid(), name: '3号桌', capacity: 8, guests: [], visible: true }
-          ]
-        }),
-
-        async ensurePlan() {
-          if (state.planId) return state.planId;
-          try {
-            ui.showLoading('创建新计划...');
-            const seeded = this.seed();
-            const { data, error } = await supabase
-              .from('plans')
-              .insert({ title: 'Seating Plan', state: seeded, version: 1 })
-              .select('id')
-              .single();
-            
-            if (error) throw error;
-            state.planId = data.id;
-            state.version = 1;
-            const url = new URL(location.href);
-            url.hash = `plan=${state.planId}`;
-            history.replaceState(null, '', url);
-            ui.showToast('计划创建成功');
-            return state.planId;
-          } catch (error) {
-            ui.showToast('创建计划失败：' + error.message, 'error');
-            throw error;
-          } finally {
-            ui.hideLoading();
-          }
-        },
-
-        async loadPlan() {
-          try {
-            ui.showLoading('加载计划中...');
-            const { data, error } = await supabase
-              .from('plans')
-              .select('state, version')
-              .eq('id', state.planId)
-              .single();
-            
-            if (error) throw error;
-            
-            // 合并状态并处理兼容性
-            Object.assign(state, {
-              ...data.state,
-              version: data.version || 1
-            });
-            
-            // 数据兼容性处理
-            state.guests = (state.guests || []).map(guest => ({
-              ...guest,
-              count: guest.count ?? 1,
-              category: guest.category ?? 'other'
-            }));
-            
-            state.tables = (state.tables || []).map(table => ({
-              ...table,
-              visible: table.visible ?? true
-            }));
-            
-            // 初始化空计划
-            if (!state.guests.length && !state.tables.length) {
-              const seeded = this.seed();
-              state.guests = seeded.guests;
-              state.tables = seeded.tables;
-              this.scheduleSave();
-            }
-            
-            render();
-            ui.showToast('计划加载成功');
-          } catch (error) {
-            ui.showToast('加载计划失败，请刷新页面重试', 'error');
-          } finally {
-            ui.hideLoading();
-          }
-        },
-
-        scheduleSave() {
-          if (state.writing) return;
-          clearTimeout(state.writeTimer);
-          state.writeTimer = setTimeout(() => this.saveNow(), config.saveDelay);
-        },
-
-        async saveNow() {
-          if (!state.planId) return;
-          
-          state.writing = true;
-          try {
-            this.detectAndFixConflicts();
-            const newVersion = state.version + 1;
-            
-            const { error } = await supabase
-              .from('plans')
-              .update({ 
-                state: { guests: state.guests, tables: state.tables }, 
-                version: newVersion 
-              })
-              .eq('id', state.planId)
-              .eq('version', state.version);
-            
-            if (error) {
-              if (error.code === '23505' || error.message.includes('violates row-level security')) {
-                this.showConflictModal();
-              } else {
-                ui.showToast('保存失败: ' + error.message, 'error');
-              }
-            } else {
-              state.version = newVersion;
-            }
-          } catch (error) {
-            ui.showToast('保存过程出错，请重试', 'error');
-          } finally {
-            state.writing = false;
-          }
-        },
-
-        detectAndFixConflicts() {
-          const visibleTables = state.tables.filter(table => table.visible);
-          const guestCounts = {};
-          
-          visibleTables.forEach(table => {
-            table.guests.forEach(guestId => {
-              guestCounts[guestId] = (guestCounts[guestId] || 0) + 1;
-            });
-          });
-          
-          const conflictGuests = Object.entries(guestCounts)
-            .filter(([_, count]) => count > 1)
-            .map(([guestId, _]) => guestId);
-          
-          if (conflictGuests.length) {
-            const seen = new Set();
-            visibleTables.forEach(table => {
-              table.guests = table.guests.filter(guestId => {
-                if (conflictGuests.includes(guestId)) {
-                  if (!seen.has(guestId)) {
-                    seen.add(guestId);
-                    return true;
-                  }
-                  return false;
-                }
-                return true;
-              });
-            });
-            ui.showToast(`已自动修复 ${conflictGuests.length} 个座位冲突`, 'warning');
-          }
-          return conflictGuests.length > 0;
-        },
-
-        async showConflictModal() {
-          try {
-            const { data: serverData } = await supabase
-              .from('plans')
-              .select('state, version')
-              .eq('id', state.planId)
-              .single();
-            
-            const serverState = serverData.state;
-            const serverVersion = serverData.version;
-            const conflicts = this.analyzeConflicts(state, serverState);
-            
-            displayConflicts(conflicts);
-            el.conflictModal.classList.add('active');
-            
-            const handleClose = () => {
-              el.conflictModal.classList.remove('active');
-              el.keepMineBtn.removeEventListener('click', keepMineHandler);
-              el.takeTheirsBtn.removeEventListener('click', takeTheirsHandler);
-              el.mergeChangesBtn.removeEventListener('click', mergeChangesHandler);
-            };
-            
-            const keepMineHandler = async () => {
-              state.version = serverVersion;
-              await this.saveNow();
-              handleClose();
-            };
-            
-            const takeTheirsHandler = async () => {
-              Object.assign(state, serverState);
-              state.tables = state.tables.map(table => ({...table, visible: table.visible ?? true}));
-              state.version = serverVersion;
-              render();
-              handleClose();
-              ui.showToast('已采用最新的服务器数据');
-            };
-            
-            const mergeChangesHandler = async () => {
-              const mergedState = this.mergeStates(state, serverState);
-              Object.assign(state, mergedState);
-              state.tables = state.tables.map(table => ({...table, visible: table.visible ?? true}));
-              state.version = serverVersion;
-              await this.saveNow();
-              render();
-              handleClose();
-              ui.showToast('已合并本地和服务器的更改');
-            };
-            
-            el.keepMineBtn.addEventListener('click', keepMineHandler);
-            el.takeTheirsBtn.addEventListener('click', takeTheirsHandler);
-            el.mergeChangesBtn.addEventListener('click', mergeChangesHandler);
-            
-          } catch (error) {
-            ui.showToast('处理冲突失败，请刷新页面', 'error');
-          }
-        },
-
-        analyzeConflicts(localState, serverState) {
-          const conflicts = { guests: [], tables: [] };
-          
-          // 分析宾客冲突
-          const localGuestsById = Object.fromEntries(localState.guests.map(g => [g.id, g]));
-          const serverGuestsById = Object.fromEntries(serverState.guests.map(g => [g.id, g]));
-          
-          Object.entries(localGuestsById).forEach(([id, localGuest]) => {
-            const serverGuest = serverGuestsById[id];
-            if (serverGuest && !utils.isEqual(localGuest, serverGuest)) {
-              conflicts.guests.push({ id, mine: localGuest, theirs: serverGuest });
-            }
-          });
-          
-          // 分析桌子冲突
-          const localTablesById = Object.fromEntries(
-            localState.tables.filter(t => t.visible).map(t => [t.id, t])
-          );
-          const serverTablesById = Object.fromEntries(
-            serverState.tables.filter(t => t.visible).map(t => [t.id, t])
-          );
-          
-          Object.entries(localTablesById).forEach(([id, localTable]) => {
-            const serverTable = serverTablesById[id];
-            if (serverTable && !utils.isEqual(localTable, serverTable)) {
-              conflicts.tables.push({ id, mine: localTable, theirs: serverTable });
-            }
-          });
-          
-          return conflicts;
-        },
-
-        mergeStates(localState, serverState) {
-          // 合并宾客数据
-          const guestsById = {};
-          serverState.guests.forEach(g => guestsById[g.id] = g);
-          localState.guests.forEach(g => guestsById[g.id] = g);
-          
-          // 合并桌子数据
-          const tablesById = {};
-          serverState.tables.filter(t => t.visible).forEach(t => tablesById[t.id] = t);
-          localState.tables.filter(t => t.visible).forEach(t => tablesById[t.id] = t);
-          
-          // 处理隐藏桌
-          const hiddenTables = [...serverState.tables, ...localState.tables]
-            .filter(t => !t.visible)
-            .reduce((acc, t) => {
-              if (!acc[t.id]) acc[t.id] = t;
-              return acc;
-            }, {});
-          
-          return {
-            ...localState,
-            guests: Object.values(guestsById),
-            tables: [...Object.values(tablesById), ...Object.values(hiddenTables)]
-          };
-        },
-
-        exportData(format = 'json') {
-          const visibleTables = state.tables.filter(table => table.visible);
-          
-          const exportData = {
-            guests: state.guests,
-            tables: visibleTables,
-            exportTime: new Date().toISOString()
-          };
-          
-          let content, mimeType, extension;
-          
-          if (format === 'csv') {
-            let csv = "桌名,容量,已入座,宾客名单\n";
-            visibleTables.forEach(table => {
-              const occupied = getTableOccupiedSeats(table.id);
-              const guestNames = table.guests
-                .map(id => {
-                  const guest = state.guests.find(g => g.id === id);
-                  return guest ? `${guest.name}(${guest.count}人)` : '';
-                })
-                .filter(Boolean)
-                .join(';');
-              
-              csv += `${utils.escapeCsv(table.name)},${table.capacity},${occupied},${utils.escapeCsv(guestNames)}\n`;
-            });
-            
-            // 添加未入座宾客
-            const seatedIds = new Set(visibleTables.flatMap(t => t.guests));
-            const unseated = state.guests.filter(g => !seatedIds.has(g.id));
-            
-            csv += "\n未入座宾客,人数,类别\n";
-            unseated.forEach(guest => {
-              csv += `${utils.escapeCsv(guest.name)},${guest.count},${utils.getCategoryName(guest.category)}\n`;
-            });
-            
-            content = csv;
-            mimeType = 'text/csv';
-            extension = 'csv';
-          } else {
-            content = JSON.stringify(exportData, null, 2);
-            mimeType = 'application/json';
-            extension = 'json';
-          }
-          
-          const blob = new Blob([content], { type: mimeType });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `座位表_${new Date().toLocaleDateString().replace(/\//g, '-')}.${extension}`;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-          }, 0);
-        },
-
-        parseImportData(content, fileName) {
-          const results = { valid: [], invalid: [], total: 0 };
-          
-          try {
-            if (fileName.endsWith('.json')) {
-              const data = JSON.parse(content);
-              
-              if (data.guests && Array.isArray(data.guests)) {
-                data.guests.forEach((guest, index) => {
-                  const result = this.validateGuest(guest);
-                  if (result.valid) {
-                    results.valid.push({...result.data, id: utils.uid()});
-                  } else {
-                    results.invalid.push({line: index + 1, data: guest, error: result.error});
-                  }
-                });
-              }
-              
-              if (data.tables && Array.isArray(data.tables)) {
-                data.tables.forEach((table, index) => {
-                  const result = this.validateTable(table);
-                  if (result.valid) {
-                    results.valid.push({...result.data, id: utils.uid(), guests: [], visible: table.visible ?? true});
-                  } else {
-                    results.invalid.push({line: index + 1, data: table, error: result.error});
-                  }
-                });
-              }
-            } else if (fileName.endsWith('.csv')) {
-              const lines = content.split('\n').filter(line => line.trim() !== '');
-              lines.forEach((line, index) => {
-                if (index === 0) return; // 跳过表头
-                
-                const parts = line.split(',').map(p => p.trim().replace(/^"/, '').replace(/"$/, ''));
-                if (parts.length >= 1) {
-                  const name = parts[0];
-                  const count = parts.length >= 2 && !isNaN(Number(parts[1])) ? Number(parts[1]) : 1;
-                  const category = parts.length >= 3 ? parts[2].toLowerCase() : 'other';
-                  
-                  const result = this.validateGuest({ name, count, category });
-                  if (result.valid) {
-                    results.valid.push({...result.data, id: utils.uid()});
-                  } else {
-                    results.invalid.push({line: index + 1, data: { name, count, category }, error: result.error});
-                  }
-                }
-              });
-            }
-            
-            results.total = results.valid.length + results.invalid.length;
-            return results;
-          } catch (error) {
-            results.invalid.push({ line: 0, data: content, error: '文件格式错误: ' + error.message });
-            results.total = 1;
-            return results;
-          }
-        },
-
-        validateGuest(guest) {
-          const nameCheck = validator.name(guest.name);
-          if (!nameCheck.valid) return { valid: false, error: nameCheck.message };
-          
-          const countCheck = validator.count(guest.count ?? 1);
-          if (!countCheck.valid) return { valid: false, error: countCheck.message };
-          
-          const validCategories = ['family', 'friend', 'colleague', 'other'];
-          const category = validCategories.includes(guest.category) ? guest.category : 'other';
-          
-          return {
-            valid: true,
-            data: { name: guest.name.trim(), count: guest.count ?? 1, category }
-          };
-        },
-
-        validateTable(table) {
-          const nameCheck = validator.tableName(table.name);
-          if (!nameCheck.valid) return { valid: false, error: nameCheck.message };
-          
-          const capCheck = validator.capacity(table.capacity ?? 10);
-          if (!capCheck.valid) return { valid: false, error: capCheck.message };
-          
-          return {
-            valid: true,
-            data: { name: table.name.trim(), capacity: table.capacity ?? 10 }
-          };
-        },
-
-        applyImport(results, replace = false) {
-          if (replace) {
-            const tableVisibility = {};
-            state.tables.forEach(t => tableVisibility[t.id] = t.visible);
-            
-            state.guests = results.valid.filter(item => item.name);
-            state.tables = results.valid
-              .filter(item => item.capacity)
-              .map(table => ({...table, visible: tableVisibility[table.id] ?? table.visible}));
-          } else {
-            const newGuests = results.valid.filter(item => item.name);
-            const newTables = results.valid
-              .filter(item => item.capacity)
-              .filter(newTable => !state.tables.some(t => t.name === newTable.name));
-            
-            state.guests = [...state.guests, ...newGuests];
-            state.tables = [...state.tables, ...newTables];
-          }
-          
-          dataManager.scheduleSave();
-          render();
-          
-          return { added: results.valid.length, skipped: results.invalid.length };
-        }
-      };
-
-      // 渲染函数
-      function renderGuestList() {
-        const searchTerm = el.search.value.toLowerCase();
-        const activeCategory = utils.qs('.category-btn.active', el.categoryFilter).dataset.category;
-        
-        // 获取已入座宾客ID
-        const seatedIds = new Set();
-        state.tables.filter(table => table.visible).forEach(table => {
-          table.guests.forEach(id => seatedIds.add(id));
-        });
-        
-        // 筛选未入座宾客
-        let filteredGuests = state.guests.filter(g => !seatedIds.has(g.id));
-        
-        // 应用分类筛选
-        if (activeCategory !== 'all') {
-          filteredGuests = filteredGuests.filter(g => g.category === activeCategory);
-        }
-        
-        // 应用搜索筛选
-        if (searchTerm) {
-          filteredGuests = filteredGuests.filter(g => 
-            g.name.toLowerCase().includes(searchTerm)
-          );
-        }
-        
-        // 渲染列表
-        el.guestList.innerHTML = filteredGuests.length 
-          ? filteredGuests.map(guest => `
-              <div class="guest" draggable="true" data-id="${guest.id}">
-                <i class="fas fa-user"></i>
-                <span>${utils.escapeHtml(guest.name)}</span>
-                <span class="count">${guest.count}人</span>
-                <span class="category ${guest.category}">${utils.getCategoryName(guest.category)}</span>
-                <i class="fas fa-ellipsis-h tag"></i>
-              </div>
-            `).join('')
-          : '<div style="text-align:center; padding:10px; color:var(--muted);">没有符合条件的未入座宾客</div>';
-        
-        // 添加拖拽事件
-        utils.qsa('.guest', el.guestList).forEach(guestEl => {
-          guestEl.addEventListener('dragstart', e => {
-            state.draggingId = guestEl.dataset.id;
-            guestEl.classList.add('dragging');
-          });
-          
-          guestEl.addEventListener('dragend', () => {
-            guestEl.classList.remove('dragging');
-            state.draggingId = null;
-          });
-        });
-      }
-      
-      function getTableOccupiedSeats(tableId) {
-        const table = state.tables.find(t => t.id === tableId);
-        if (!table || !table.visible) return 0;
-        
-        return table.guests.reduce((total, guestId) => {
-          const guest = state.guests.find(g => g.id === guestId);
-          return total + (guest ? guest.count : 1);
-        }, 0);
-      }
-      
-      function renderTables() {
-        el.canvas.innerHTML = state.tables.map(table => {
-          const occupied = getTableOccupiedSeats(table.id);
-          const hasConflict = occupied > table.capacity;
-          const chairCount = Math.max(table.capacity, 8);
-          const chairs = [];
-          
-          // 生成座位
-          for (let i = 0; i < chairCount; i++) {
-            const angle = (i / chairCount) * Math.PI * 2;
-            const radius = 110;
-            const x = Math.cos(angle) * radius + 110;
-            const y = Math.sin(angle) * radius + 110;
-            
-            let guestId = i < table.guests.length ? table.guests[i] : null;
-            let guestName = '';
-            let guestCount = '';
-            let isEmpty = true;
-            let conflict = false;
-            
-            if (guestId) {
-              const guest = state.guests.find(g => g.id === guestId);
-              if (guest) {
-                guestName = utils.shortName(guest.name);
-                guestCount = guest.count > 1 ? `<span class="count">${guest.count}</span>` : '';
-                isEmpty = false;
-                conflict = occupied > table.capacity;
-              }
-            }
-            
-            chairs.push(`
-              <div class="chair ${isEmpty ? 'empty' : ''} ${conflict ? 'conflict' : ''}" 
-                   style="left:${x}px; top:${y}px"
-                   data-chair-index="${i}">
-                ${isEmpty ? `座位 ${i+1}` : `${utils.escapeHtml(guestName)}${guestCount}`}
-                ${!isEmpty ? `<span class="kick" data-guest-id="${guestId}">移走</span>` : ''}
-              </div>
-            `);
-          }
-          
-          return `
-            <div class="table-card ${hasConflict ? 'has-conflict' : ''} ${!table.visible ? 'hidden' : ''}" 
-                 data-table-id="${table.id}">
-              <div class="table-header">
-                <div class="badge">${utils.escapeHtml(table.name)}</div>
-                <div class="capacity">
-                  ${occupied}/${table.capacity} 人
-                  ${hasConflict ? '<span style="color:var(--error)">（超员）</span>' : ''}
-                </div>
-              </div>
-              <div class="table-visual">
-                <div class="round-wrap">
-                  <div class="round">${utils.escapeHtml(table.name)}</div>
-                  ${chairs.join('')}
-                </div>
-              </div>
-              <div class="table-footer">
-                <a class="link rename-table" data-table-id="${table.id}">重命名</a>
-                <a class="link resize-table" data-table-id="${table.id}">改容量</a>
-                <a class="link clear-table" data-table-id="${table.id}">清空</a>
-                <div class="spacer"></div>
-                <a class="link warn delete-table" data-table-id="${table.id}">删除</a>
-              </div>
-            </div>
-          `;
-        }).join('');
-        
-        // 为可见桌添加事件监听
-        state.tables.filter(table => table.visible).forEach(table => {
-          const tableCard = utils.qs(`.table-card[data-table-id="${table.id}"]`);
-          if (!tableCard) return;
-          
-          // 桌子拖放事件
-          tableCard.addEventListener('dragover', e => {
-            e.preventDefault();
-          });
-          
-          tableCard.addEventListener('drop', e => {
-            e.preventDefault();
-            if (state.draggingId) {
-              addGuestToTable(state.draggingId, table.id);
-            }
-          });
-          
-          // 移走宾客
-          utils.qsa('.kick', tableCard).forEach(kickEl => {
-            kickEl.addEventListener('click', e => {
-              e.stopPropagation();
-              const guestId = kickEl.dataset.guestId;
-              removeGuestFromTable(guestId, table.id);
-            });
-          });
-          
-          // 重命名桌子
-          utils.qs('.rename-table', tableCard).addEventListener('click', e => {
-            e.stopPropagation();
-            renameTable(table.id);
-          });
-          
-          // 修改容量
-          utils.qs('.resize-table', tableCard).addEventListener('click', e => {
-            e.stopPropagation();
-            resizeTable(table.id);
-          });
-          
-          // 清空桌子
-          utils.qs('.clear-table', tableCard).addEventListener('click', e => {
-            e.stopPropagation();
-            clearTable(table.id);
-          });
-          
-          // 删除桌子
-          utils.qs('.delete-table', tableCard).addEventListener('click', e => {
-            e.stopPropagation();
-            deleteTable(table.id);
-          });
-        });
-        
-        // 为隐藏桌添加双击恢复事件
-        utils.qsa('.table-card.hidden').forEach(card => {
-          card.addEventListener('dblclick', e => {
-            e.stopPropagation();
-            const tableId = card.dataset.tableId;
-            const table = state.tables.find(t => t.id === tableId);
-            if (table) {
-              table.visible = true;
-              dataManager.scheduleSave();
-              render();
-              ui.showToast(`已恢复 ${table.name} 为可用桌`);
-            }
-          });
-        });
-      }
-      
-      function displayConflicts(conflicts) {
-        el.conflictDetails.innerHTML = '';
-        
-        if (conflicts.guests.length === 0 && conflicts.tables.length === 0) {
-          el.conflictDetails.innerHTML = '<p>未检测到具体冲突，但数据版本不一致。</p>';
-          return;
-        }
-        
-        if (conflicts.guests.length > 0) {
-          const guestsSection = document.createElement('div');
-          guestsSection.innerHTML = `<h3>宾客信息冲突 (${conflicts.guests.length})</h3>`;
-          
-          conflicts.guests.forEach(conflict => {
-            const guestEl = document.createElement('div');
-            guestEl.className = 'conflict-group';
-            guestEl.innerHTML = `
-              <div class="conflict-item mine">
-                <strong>我的更改:</strong> ${utils.escapeHtml(conflict.mine.name)} (${conflict.mine.count}人)
-              </div>
-              <div class="conflict-item theirs">
-                <strong>其他人的更改:</strong> ${utils.escapeHtml(conflict.theirs.name)} (${conflict.theirs.count}人)
-              </div>
-            `;
-            guestsSection.appendChild(guestEl);
-          });
-          
-          el.conflictDetails.appendChild(guestsSection);
-        }
-        
-        if (conflicts.tables.length > 0) {
-          const tablesSection = document.createElement('div');
-          tablesSection.innerHTML = `<h3>桌位信息冲突 (${conflicts.tables.length})</h3>`;
-          
-          conflicts.tables.forEach(conflict => {
-            const tableEl = document.createElement('div');
-            tableEl.className = 'conflict-group';
-            tableEl.innerHTML = `
-              <div class="conflict-item mine">
-                <strong>我的更改:</strong> ${utils.escapeHtml(conflict.mine.name)} (容量: ${conflict.mine.capacity})
-              </div>
-              <div class="conflict-item theirs">
-                <strong>其他人的更改:</strong> ${utils.escapeHtml(conflict.theirs.name)} (容量: ${conflict.theirs.capacity})
-              </div>
-            `;
-            tablesSection.appendChild(tableEl);
-          });
-          
-          el.conflictDetails.appendChild(tablesSection);
-        }
-      }
-      
-      function render() {
-        renderGuestList();
-        renderTables();
-        updatePlanInfo();
-      }
-      
-      function updatePlanInfo() {
-        if (state.planId) {
-          el.planIdLabel.textContent = state.planId.slice(0, 8) + '...';
-        }
-      }
-
-      // 事件处理函数
-      function addGuests() {
-        const text = el.bulkNames.value.trim();
-        if (!text) {
-          ui.showToast('请输入宾客姓名', 'warning');
-          return;
-        }
-        
-        const category = el.guestCategory.value;
-        const lines = text.split('\n').filter(line => line.trim() !== '');
-        let added = 0;
-        
-        lines.forEach(line => {
-          const match = line.match(/^\s*(.+?)\s*(\d+)?\s*(?:[（(](.*?)[)）])?\s*$/);
-          if (!match) return;
-          
-          const name = match[1].trim();
-          const count = match[2] ? parseInt(match[2], 10) : 1;
-          let guestCategory = category;
-          
-          // 如果行内指定了分类，使用行内的
-          if (match[3]) {
-            const catText = match[3].toLowerCase();
-            if (catText.includes('家')) guestCategory = 'family';
-            else if (catText.includes('朋')) guestCategory = 'friend';
-            else if (catText.includes('同')) guestCategory = 'colleague';
-            else guestCategory = 'other';
-          }
-          
-          // 验证
-          const nameCheck = validator.name(name);
-          if (!nameCheck.valid) {
-            ui.showToast(`"${name}" 无效: ${nameCheck.message}`, 'error');
-            return;
-          }
-          
-          const countCheck = validator.count(count);
-          if (!countCheck.valid) {
-            ui.showToast(`"${name}" 的人数无效: ${countCheck.message}`, 'error');
-            return;
-          }
-          
-          // 添加宾客
-          state.guests.push({
-            id: utils.uid(),
-            name,
-            count,
-            category: guestCategory
-          });
-          added++;
-        });
-        
-        if (added > 0) {
-          el.bulkNames.value = '';
-          dataManager.scheduleSave();
-          render();
-          ui.showToast(`已添加 ${added} 组宾客`);
-        }
-      }
-      
-      function clearUnseatedGuests() {
-        // 获取已入座宾客ID
-        const seatedIds = new Set();
-        state.tables.filter(table => table.visible).forEach(table => {
-          table.guests.forEach(id => seatedIds.add(id));
-        });
-        
-        // 保存要删除的宾客ID
-        const toRemove = state.guests
-          .filter(g => !seatedIds.has(g.id))
-          .length;
-        
-        if (toRemove === 0) {
-          ui.showToast('没有可清空的未入座宾客', 'info');
-          return;
-        }
-        
-        if (!confirm(`确定要清空 ${toRemove} 组未入座宾客吗？`)) {
-          return;
-        }
-        
-        // 移除未入座宾客
-        state.guests = state.guests.filter(g => seatedIds.has(g.id));
-        
-        dataManager.scheduleSave();
-        render();
-        ui.showToast(`已清空 ${toRemove} 组未入座宾客`);
-      }
-      
-      function addTable() {
-        const name = el.tableName.value.trim() || `新桌 ${state.tables.length + 1}`;
-        const capacity = parseInt(el.tableCap.value, 10) || 10;
-        
-        const nameCheck = validator.tableName(name);
-        if (!nameCheck.valid) {
-          ui.showToast(nameCheck.message, 'error');
-          return;
-        }
-        
-        const capCheck = validator.capacity(capacity);
-        if (!capCheck.valid) {
-          ui.showToast(capCheck.message, 'error');
-          return;
-        }
-        
-        state.tables.push({
-          id: utils.uid(),
-          name,
-          capacity,
-          guests: [],
-          visible: true
-        });
-        
-        el.tableName.value = '';
-        dataManager.scheduleSave();
-        render();
-        ui.showToast(`已添加 ${name} (容量: ${capacity}人)`);
-      }
-      
-      function addGuestToTable(guestId, tableId) {
-        const guest = state.guests.find(g => g.id === guestId);
-        const table = state.tables.find(t => t.id === tableId);
-        
-        if (!guest || !table || !table.visible) return;
-        
-        // 检查是否已在该桌
-        if (table.guests.includes(guestId)) return;
-        
-        // 检查是否已在其他可见桌
-        const otherTables = state.tables.filter(t => t.id !== tableId && t.visible);
-        otherTables.forEach(otherTable => {
-          const index = otherTable.guests.indexOf(guestId);
-          if (index !== -1) otherTable.guests.splice(index, 1);
-        });
-        
-        // 添加到当前桌
-        table.guests.push(guestId);
-        
-        dataManager.scheduleSave();
-        render();
-        ui.showToast(`${guest.name} 已安排到 ${table.name}`);
-      }
-      
-      function removeGuestFromTable(guestId, tableId) {
-        const guest = state.guests.find(g => g.id === guestId);
-        const table = state.tables.find(t => t.id === tableId);
-        
-        if (!guest || !table) return;
-        
-        const index = table.guests.indexOf(guestId);
-        if (index !== -1) {
-          table.guests.splice(index, 1);
-          
-          dataManager.scheduleSave();
-          render();
-          ui.showToast(`${guest.name} 已从 ${table.name} 移走`);
-        }
-      }
-      
-      function renameTable(tableId) {
-        const table = state.tables.find(t => t.id === tableId);
-        if (!table || !table.visible) return;
-        
-        const newName = prompt('请输入新的桌名', table.name);
-        if (newName === null) return;
-        
-        const trimmed = newName.trim();
-        if (!trimmed) {
-          ui.showToast('桌名不能为空', 'error');
-          return;
-        }
-        
-        const nameCheck = validator.tableName(trimmed);
-        if (!nameCheck.valid) {
-          ui.showToast(nameCheck.message, 'error');
-          return;
-        }
-        
-        table.name = trimmed;
-        dataManager.scheduleSave();
-        render();
-        ui.showToast(`桌名已更新为 ${trimmed}`);
-      }
-      
-      function resizeTable(tableId) {
-        const table = state.tables.find(t => t.id === tableId);
-        if (!table || !table.visible) return;
-        
-        const newCap = prompt('请输入新的容量', table.capacity);
-        if (newCap === null) return;
-        
-        const cap = parseInt(newCap, 10);
-        const capCheck = validator.capacity(cap);
-        
-        if (!capCheck.valid) {
-          ui.showToast(capCheck.message, 'error');
-          return;
-        }
-        
-        table.capacity = cap;
-        
-        // 检查是否需要移除宾客
-        const occupied = getTableOccupiedSeats(table.id);
-        if (occupied > cap) {
-          ui.showToast(`桌容量已修改为 ${cap} 人，当前超员 ${occupied - cap} 人`, 'warning');
-        }
-        
-        dataManager.scheduleSave();
-        render();
-      }
-      
-      function clearTable(tableId) {
-        const table = state.tables.find(t => t.id === tableId);
-        if (!table || !table.visible) return;
-        
-        if (table.guests.length === 0) {
-          ui.showToast('该桌已为空', 'info');
-          return;
-        }
-        
-        if (!confirm(`确定要清空 ${table.name} 的所有宾客吗？`)) {
-          return;
-        }
-        
-        table.guests = [];
-        dataManager.scheduleSave();
-        render();
-        ui.showToast(`${table.name} 已清空`);
-      }
-      
-      function deleteTable(tableId) {
-        const table = state.tables.find(t => t.id === tableId);
-        if (!table || !table.visible) return;
-        
-        if (!confirm(`确定要删除 ${table.name} 吗？桌内宾客将变为未入座状态。`)) {
-          return;
-        }
-        
-        // 从列表中移除桌子
-        const index = state.tables.indexOf(table);
-        if (index !== -1) {
-          state.tables.splice(index, 1);
-          
-          dataManager.scheduleSave();
-          render();
-          ui.showToast(`${table.name} 已删除`);
-        }
-      }
-      
-      function handleAutoSeat() {
-        // 获取已入座宾客ID
-        const seatedIds = new Set();
-        state.tables.filter(table => table.visible).forEach(table => {
-          table.guests.forEach(id => seatedIds.add(id));
-        });
-        
-        const pending = state.guests.filter(g => !seatedIds.has(g.id));
-        if (!pending.length) {
-          ui.showToast('没有未入座的宾客', 'info');
-          return;
-        }
-        
-        // 仅使用可见桌
-        const visibleTables = state.tables.filter(table => table.visible);
-        if (!visibleTables.length) {
-          ui.showToast('没有可用的桌子（所有桌子已隐藏）', 'warning');
-          return;
-        }
-        
-        // 计算容量
-        const totalRequired = pending.reduce((sum, g) => sum + g.count, 0);
-        const totalCapacity = visibleTables.reduce((sum, t) => sum + t.capacity, 0);
-        const occupiedSeats = visibleTables.reduce((sum, t) => 
-          sum + getTableOccupiedSeats(t.id), 0);
-        const availableCapacity = totalCapacity - occupiedSeats;
-        
-        if (totalRequired > availableCapacity && 
-            !confirm(`座位不足，还需要 ${totalRequired - availableCapacity} 个座位，是否继续？`)) {
-          return;
-        }
-        
-        ui.showLoading('正在自动排座...');
-        
-        setTimeout(() => {
-          try {
-            // 复制可见桌用于修改
-            const newVisibleTables = visibleTables.map(t => ({ ...t, guests: [...t.guests] }));
-            const groupByCat = el.groupByCategory.checked;
-            
-            if (groupByCat) {
-              // 按类别分组排座
-              const guestsByCategory = {};
-              pending.forEach(g => {
-                if (!guestsByCategory[g.category]) guestsByCategory[g.category] = [];
-                guestsByCategory[g.category].push(g);
-              });
-              
-              Object.values(guestsByCategory).forEach(categoryGuests => {
-                assignGuestsToTables(categoryGuests, newVisibleTables);
-              });
-            } else {
-              // 不分组排座
-              assignGuestsToTables(pending, newVisibleTables);
-            }
-            
-            // 更新原表数据
-            newVisibleTables.forEach(updatedTable => {
-              const originalTable = state.tables.find(t => t.id === updatedTable.id);
-              if (originalTable) originalTable.guests = updatedTable.guests;
-            });
-            
-            dataManager.scheduleSave();
-            render();
-            ui.showToast(`自动排座完成，已安排 ${pending.length} 组宾客`);
-          } catch (error) {
-            ui.showToast('自动排座失败，请重试', 'error');
-          } finally {
-            ui.hideLoading();
-          }
-        }, 600);
-      }
-      
-      function assignGuestsToTables(guests, tables) {
-        // 按剩余容量升序排列，优先填满小桌子
-        const sortedTables = [...tables].sort((a, b) => {
-          const remainingA = a.capacity - getTableOccupiedSeats(a.id);
-          const remainingB = b.capacity - getTableOccupiedSeats(b.id);
-          return remainingA - remainingB;
-        });
-        
-        // 分配宾客
-        guests.forEach(guest => {
-          // 尝试找到合适的桌子
-          let assigned = false;
-          
-          for (const table of sortedTables) {
-            const currentOccupied = getTableOccupiedSeats(table.id);
-            
-            // 如果能容纳
-            if (currentOccupied + guest.count <= table.capacity) {
-              table.guests.push(guest.id);
-              assigned = true;
-              break;
-            }
-          }
-          
-          // 如果没有找到合适的桌子，仍然分配到第一个桌子
-          if (!assigned) {
-            sortedTables[0].guests.push(guest.id);
-          }
-        });
-      }
-      
-      function shuffleGuests() {
-        // 随机打乱未入座宾客
-        const seatedIds = new Set();
-        state.tables.filter(table => table.visible).forEach(table => {
-          table.guests.forEach(id => seatedIds.add(id));
-        });
-        
-        const unseated = state.guests.filter(g => !seatedIds.has(g.id));
-        
-        // 打乱顺序
-        for (let i = unseated.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [state.guests[state.guests.indexOf(unseated[i])], 
-           state.guests[state.guests.indexOf(unseated[j])]] = 
-          [state.guests[state.guests.indexOf(unseated[j])], 
-           state.guests[state.guests.indexOf(unseated[i])]];
-        }
-        
-        renderGuestList();
-        ui.showToast('已随机打乱未入座宾客顺序');
-      }
-      
-      function handleFileImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const content = event.target.result;
-            const results = dataManager.parseImportData(content, file.name);
-            
-            // 显示预览
-            el.importPreview.innerHTML = '';
-            el.importPreview.style.display = 'block';
-            el.confirmImportBtn.style.display = 'block';
-            
-            if (results.valid.length > 0) {
-              const validSection = document.createElement('div');
-              validSection.innerHTML = `<strong style="color:var(--success)">可导入 (${results.valid.length} 项):</strong>`;
-              results.valid.slice(0, 10).forEach((item) => {
-                const itemEl = document.createElement('div');
-                itemEl.style.padding = "4px 0";
-                itemEl.style.borderBottom = "1px dashed var(--border)";
-                itemEl.textContent = item.name 
-                  ? `${item.name} (${item.count}人, ${utils.getCategoryName(item.category)})`
-                  : `${item.name} (容量: ${item.capacity})`;
-                validSection.appendChild(itemEl);
-              });
-              if (results.valid.length > 10) {
-                const moreEl = document.createElement('div');
-                moreEl.textContent = `... 还有 ${results.valid.length - 10} 项未显示`;
-                validSection.appendChild(moreEl);
-              }
-              el.importPreview.appendChild(validSection);
-            }
-            
-            if (results.invalid.length > 0) {
-              const invalidSection = document.createElement('div');
-              invalidSection.innerHTML = `<strong style="color:var(--error)">无法导入 (${results.invalid.length} 项):</strong>`;
-              results.invalid.slice(0, 10).forEach((item) => {
-                const itemEl = document.createElement('div');
-                itemEl.style.padding = "4px 0";
-                itemEl.style.borderBottom = "1px dashed var(--border)";
-                itemEl.style.color = "var(--error)";
-                itemEl.textContent = `行 ${item.line}: ${item.error}`;
-                invalidSection.appendChild(itemEl);
-              });
-              if (results.invalid.length > 10) {
-                const moreEl = document.createElement('div');
-                moreEl.style.color = "var(--error)";
-                moreEl.textContent = `... 还有 ${results.invalid.length - 10} 项未显示`;
-                invalidSection.appendChild(moreEl);
-              }
-              el.importPreview.appendChild(invalidSection);
-            }
-            
-            // 保存解析结果供确认导入使用
-            el.confirmImportBtn.dataset.importResults = JSON.stringify(results);
-          } catch (error) {
-            ui.showToast('解析文件失败: ' + error.message, 'error');
-          }
-        };
-        
-        reader.readAsText(file);
-      }
-      
-      function confirmImport() {
-        const resultsJson = el.confirmImportBtn.dataset.importResults;
-        if (!resultsJson) return;
-        
-        const results = JSON.parse(resultsJson);
-        if (results.valid.length === 0) {
-          ui.showToast('没有可导入的有效数据', 'warning');
-          return;
-        }
-        
-        const replace = confirm(`发现 ${results.valid.length} 项有效数据，${results.invalid.length} 项无效数据。是否替换现有数据？\n取消则合并到现有数据中。`);
-        
-        const importResult = dataManager.applyImport(results, replace);
-        ui.showToast(`导入完成：成功添加 ${importResult.added} 项，跳过 ${importResult.skipped} 项`);
-        
-        // 重置导入控件
-        el.importFile.value = '';
-        el.importPreview.style.display = 'none';
-        el.confirmImportBtn.style.display = 'none';
-        el.confirmImportBtn.removeAttribute('data-import-results');
-      }
-      
-      function resetAll() {
-        if (!confirm('确定要重置所有数据吗？这将清除当前所有的宾客和桌位信息！')) {
-          return;
-        }
-        
-        const seeded = dataManager.seed();
-        state.guests = seeded.guests;
-        state.tables = seeded.tables;
-        
-        dataManager.scheduleSave();
-        render();
-        ui.showToast('已重置所有数据为初始状态');
-      }
-      
-      function shareLink() {
-        if (!state.planId) {
-          ui.showToast('请先创建计划', 'warning');
-          return;
-        }
-        
-        const shareUrl = `${window.location.origin}${window.location.pathname}#plan=${state.planId}`;
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          ui.showToast('分享链接已复制到剪贴板');
-        }).catch(() => {
-          // 降级方案
-          const tempInput = document.createElement('input');
-          document.body.appendChild(tempInput);
-          tempInput.value = shareUrl;
-          tempInput.select();
-          document.execCommand('copy');
-          document.body.removeChild(tempInput);
-          ui.showToast('分享链接已复制到剪贴板');
-        });
-      }
-      
-      function setupRealtimeUpdates() {
-        if (!state.planId) return;
-        
-        // 监听计划数据变化
-        const planSubscription = supabase
-          .channel(`plan:${state.planId}`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'plans', filter: `id=eq.${state.planId}` },
-            (payload) => {
-              if (payload.eventType === 'UPDATE' && !state.writing) {
-                // 数据有更新，重新加载
-                if (payload.new.version > state.version) {
-                  ui.showLoading('检测到更新，正在同步...');
-                  setTimeout(() => {
-                    dataManager.loadPlan().then(() => {
-                      ui.hideLoading();
-                      ui.showToast('已同步最新数据');
-                    });
-                  }, 800);
-                }
-              }
-            }
-          )
-          .subscribe();
-          
-        // 监听在线用户变化
-        const presenceSubscription = supabase
-          .channel(`presence:${state.planId}`)
-          .on('presence', { event: 'sync' }, () => {
-            const presences = presenceSubscription.presenceState();
-            const users = Object.keys(presences).reduce((acc, key) => {
-              return [...acc, ...presences[key]];
-            }, []);
-            state.onlineUsers = users.length;
-            el.onlineUsers.textContent = `在线：${state.onlineUsers}人`;
-          })
-          .subscribe();
-          
-        // 加入在线用户列表
-        presenceSubscription.track({
-          id: localStorage.getItem('user_id') || (() => {
-            const id = utils.uid();
-            localStorage.setItem('user_id', id);
-            return id;
-          })(),
-          joined: new Date().toISOString()
-        });
-        
-        // 页面关闭时清理
-        window.addEventListener('beforeunload', () => {
-          supabase.removeChannel(planSubscription);
-          supabase.removeChannel(presenceSubscription);
-        });
-      }
-
-      // 绑定事件
-      function bindEvents() {
-        // 添加宾客
-        el.addGuestsBtn.addEventListener('click', addGuests);
-        
-        // 清空未入座宾客
-        el.clearGuestsBtn.addEventListener('click', clearUnseatedGuests);
-        
-        // 添加桌子
-        el.addTableBtn.addEventListener('click', addTable);
-        
-        // 自动排座
-        el.autoSeatBtn.addEventListener('click', handleAutoSeat);
-        
-        // 随机打乱
-        el.shuffleBtn.addEventListener('click', shuffleGuests);
-        
-        // 导出数据
-        el.exportBtn.addEventListener('click', () => dataManager.exportData(el.exportFormat.value));
-        
-        // 导入数据
-        el.importFile.addEventListener('change', handleFileImport);
-        el.confirmImportBtn.addEventListener('click', confirmImport);
-        
-        // 打印
-        el.printBtn.addEventListener('click', () => window.print());
-        
-        // 重置全部
-        el.resetAllBtn.addEventListener('click', resetAll);
-        
-        // 分享链接
-        el.shareBtn.addEventListener('click', shareLink);
-        
-        // 列数调整
-        el.colsRange.addEventListener('input', (e) => ui.setCols(e.target.value));
-        el.colsNumber.addEventListener('change', (e) => ui.setCols(e.target.value));
-        
-        // 分类筛选
-        utils.qsa('.category-btn', el.categoryFilter).forEach(btn => {
-          btn.addEventListener('click', () => {
-            utils.qsa('.category-btn', el.categoryFilter).forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            renderGuestList();
-          });
-        });
-        
-        // 搜索
-        el.search.addEventListener('input', renderGuestList);
-        
-        // 初始化列数
-        const savedCols = localStorage.getItem('seating_cols');
-        if (savedCols) ui.setCols(savedCols);
-        
-        // 监听数据变化
-        setupRealtimeUpdates();
-      }
-
-      // 初始化应用
-      (async () => {
-        try {
-          await dataManager.ensurePlan();
-          await dataManager.loadPlan();
-          bindEvents();
-        } catch (error) {
-          console.error('初始化失败:', error);
-          ui.showToast('初始化失败，请刷新页面重试', 'error');
-        }
-      })();
-    </script>
-  </body>
+  <!-- 引入外部JavaScript -->
+  <script src="Seating-Plan.js"></script>
+</body>
 </html>
