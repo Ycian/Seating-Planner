@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>宾客座位规划（支持人数 | 实时协作）</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
-<!-- 引入Font Awesome图标库 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <style>
   :root{ 
@@ -24,7 +23,6 @@
     --warning:#ffcc00;
     --error:#ff3b30;
     --conflict-highlight: rgba(255, 59, 48, 0.15);
-    /* 分类颜色 */
     --family:#4cd964;
     --friend:#ffcc00;
     --colleague:#6aa7ff;
@@ -56,7 +54,6 @@
     overflow:hidden;
   }
   
-  /* 功能卡片样式 */
   .sidebar-section {
     background: var(--card);
     border-radius: 12px;
@@ -72,6 +69,7 @@
   h1{font-size:16px; margin:0 0 8px 0; letter-spacing:.5px; display:flex; align-items:center; gap:6px}
   h1 i {color: var(--accent);}
   
+  .controls,.stats{display:grid; gap:8px}
   .controls input[type="text"], 
   .controls input[type="number"], 
   textarea, 
@@ -109,27 +107,7 @@
   .btn:active{transform:translateY(1px)} 
   .btn.ghost{background:transparent; border:1px solid var(--border); color:var(--text); box-shadow:none}
   .btn.warn{background:linear-gradient(135deg,#ff8a8a,#ff6b6b)}
-  .btn.loading {
-    position: relative;
-    pointer-events: none;
-    opacity: 0.8;
-  }
-  .btn.loading::after {
-    content: "";
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-  }
   
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  
-  /* 改进的宾客列表样式 */
   .guest-list-container {
     flex: 1;
     display: flex;
@@ -147,16 +125,11 @@
     border: 1px dashed var(--border);
     border-radius: 12px;
     background:rgba(0,0,0,.12);
-    /* 确保滚动条美观 */
     scrollbar-width: thin;
     scrollbar-color: var(--accent) transparent;
   }
-  .guest-list::-webkit-scrollbar {
-    width: 6px;
-  }
-  .guest-list::-webkit-scrollbar-track {
-    background: transparent;
-  }
+  .guest-list::-webkit-scrollbar {width: 6px;}
+  .guest-list::-webkit-scrollbar-track {background: transparent;}
   .guest-list::-webkit-scrollbar-thumb {
     background-color: var(--accent);
     border-radius: 3px;
@@ -173,9 +146,7 @@
     border:1px solid var(--border);
     transition:all 0.2s;
   }
-  .guest:hover {
-    border-color: rgba(255,255,255,0.2);
-  }
+  .guest:hover {border-color: rgba(255,255,255,0.2);}
   .guest.dragging{opacity:.6; transform:scale(0.98)} 
   .guest .tag{font-size:12px; color:var(--muted); margin-left:auto}
   .guest .count {
@@ -192,7 +163,6 @@
     font-weight: 500;
     margin-right: 4px;
   }
-  /* 分类标签颜色 */
   .category.family { background-color: rgba(76, 217, 100, 0.2); color: var(--family); }
   .category.friend { background-color: rgba(255, 204, 0, 0.2); color: var(--friend); }
   .category.colleague { background-color: rgba(106, 167, 255, 0.2); color: var(--colleague); }
@@ -207,9 +177,7 @@
     transition:border-color 0.2s;
     width: 100%;
   }
-  .search:focus {
-    border-color: var(--accent);
-  }
+  .search:focus {border-color: var(--accent);}
   .main{flex:1; min-width:0; display:flex; flex-direction:column; gap:10px}
   .toolbar{ 
     background:var(--panel); 
@@ -220,6 +188,13 @@
     gap:8px; 
     flex-wrap:wrap; 
     align-items:center 
+  }
+  .stats{ 
+    display:flex; 
+    align-items:center; 
+    gap:10px; 
+    flex-wrap:wrap; 
+    margin-left:auto 
   }
   .pill{ 
     padding:8px 10px; 
@@ -279,11 +254,9 @@
   .round-wrap{ position:relative; width:220px; height:220px; margin:auto }
   .round{ 
     position:absolute; 
-    left:50%; 
-    top:50%; 
+    left:50%; top:50%; 
     transform:translate(-50%,-50%); 
-    width:120px; 
-    height:120px; 
+    width:120px; height:120px; 
     border-radius:50%; 
     background:#2a2f68; 
     border:2px solid var(--border); 
@@ -296,8 +269,7 @@
   }
   .chair{ 
     position:absolute; 
-    width:64px; 
-    height:28px; 
+    width:64px; height:28px; 
     border-radius:14px; 
     background:#222861; 
     border:1px solid var(--border); 
@@ -310,10 +282,7 @@
     text-overflow:ellipsis;
     transition:all 0.2s;
   }
-  .chair:hover {
-    transform: scale(1.05);
-    z-index: 10;
-  }
+  .chair:hover {transform: scale(1.05); z-index: 10;}
   .chair.empty{ opacity:.45; font-size:12px; color:var(--muted) }
   .chair.conflict {
     background: rgba(255, 59, 48, 0.3);
@@ -342,9 +311,7 @@
     opacity:0.7;
     transition:opacity 0.2s;
   }
-  .chair:hover .kick {
-    opacity:1;
-  }
+  .chair:hover .kick {opacity:1;}
   .table-footer{ display:flex; align-items:center; gap:6px; color:var(--muted) }
   .spacer{flex:1} 
   .link{
@@ -354,13 +321,10 @@
     font-size:12px;
     transition:color 0.2s;
   }
-  .link:hover {
-    color: var(--accent-2);
-  }
+  .link:hover {color: var(--accent-2);}
   .grid-controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap } 
   .grid-controls input[type="range"]{ width:160px }
   
-  /* 提示消息样式 */
   .toast-container {
     position: fixed;
     top: 20px;
@@ -395,7 +359,6 @@
     to { transform: translateX(100%); opacity: 0; }
   }
   
-  /* 宾客分类选择器 - 增强样式 */
   .category-selector {
     display: flex;
     gap: 6px;
@@ -417,10 +380,7 @@
     align-items: center;
     gap: 4px;
   }
-  .category-btn::before {
-    content: '●';
-    font-size: 8px;
-  }
+  .category-btn::before {content: '●'; font-size: 8px;}
   .category-btn.family::before { color: var(--family); }
   .category-btn.friend::before { color: var(--friend); }
   .category-btn.colleague::before { color: var(--colleague); }
@@ -436,14 +396,12 @@
     font-weight: 500;
   }
   
-  /* 批量操作菜单 */
   .batch-actions {
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px dashed var(--border);
   }
   
-  /* 筛选结果提示 */
   .filter-result {
     font-size: 12px;
     color: var(--muted);
@@ -455,7 +413,6 @@
     justify-content: space-between;
   }
   
-  /* 导入预览 */
   .import-preview {
     max-height: 200px;
     overflow-y: auto;
@@ -470,14 +427,9 @@
     border-bottom: 1px dashed var(--border);
     font-size: 12px;
   }
-  .import-preview-item:last-child {
-    border-bottom: none;
-  }
-  .import-preview .error {
-    color: var(--error);
-  }
+  .import-preview-item:last-child {border-bottom: none;}
+  .import-preview .error {color: var(--error);}
   
-  /* 冲突解决对话框 */
   .modal-backdrop {
     position: fixed;
     top: 0;
@@ -507,9 +459,7 @@
     transform: translateY(20px);
     transition: transform 0.3s ease;
   }
-  .modal-backdrop.active .modal {
-    transform: translateY(0);
-  }
+  .modal-backdrop.active .modal {transform: translateY(0);}
   .modal h2 {
     margin-top: 0;
     color: var(--text);
@@ -517,12 +467,8 @@
     align-items: center;
     gap: 8px;
   }
-  .modal h2 i {
-    color: var(--error);
-  }
-  .modal p {
-    color: var(--muted);
-  }
+  .modal h2 i {color: var(--error);}
+  .modal p {color: var(--muted);}
   .conflict-item {
     background: var(--card);
     border-radius: 8px;
@@ -530,12 +476,8 @@
     margin: 10px 0;
     border: 1px solid var(--border);
   }
-  .conflict-item.theirs {
-    border-left: 3px solid var(--accent);
-  }
-  .conflict-item.mine {
-    border-left: 3px solid var(--success);
-  }
+  .conflict-item.theirs {border-left: 3px solid var(--accent);}
+  .conflict-item.mine {border-left: 3px solid var(--success);}
   .modal-buttons {
     display: flex;
     gap: 10px;
@@ -543,7 +485,12 @@
     margin-top: 20px;
   }
   
-  /* 加载指示器 */
+  .stats-chart-container {
+    height: 200px;
+    margin: 10px 0;
+    position: relative;
+  }
+  
   .loading-indicator {
     position: fixed;
     top: 50%;
@@ -574,7 +521,8 @@
     animation: spin 1s ease-in-out infinite;
   }
   
-  /* 打印样式优化 */
+  @keyframes spin {to { transform: rotate(360deg); }}
+  
   @media print {
     body {
       background: white;
@@ -583,13 +531,8 @@
       padding: 20px;
       overflow: visible;
     }
-    .sidebar, .toolbar {
-      display: none !important;
-    }
-    .main {
-      width: 100%;
-      display: block;
-    }
+    .sidebar, .toolbar {display: none !important;}
+    .main {width: 100%; display: block;}
     .canvas {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -612,12 +555,8 @@
       border-color: #ccc;
       color: black;
     }
-    .chair.empty {
-      display: none;
-    }
-    .table-footer {
-      display: none;
-    }
+    .chair.empty {display: none;}
+    .table-footer {display: none;}
   }
   
   @media (max-width:920px){ 
@@ -632,31 +571,24 @@
       height: auto;
       max-height: 80vh;
     } 
-    .canvas{
-      grid-template-columns:repeat(1, minmax(260px,1fr))
-    } 
+    .canvas{grid-template-columns:repeat(1, minmax(260px,1fr))} 
   }
 </style>
 </head>
 <body>
-  <!-- 提示消息容器 -->
   <div class="toast-container" id="toastContainer"></div>
   
-  <!-- 加载指示器 -->
   <div class="loading-indicator" id="loadingIndicator">
     <div class="loading-spinner"></div>
     <span id="loadingMessage">处理中...</span>
   </div>
   
-  <!-- 冲突解决对话框 -->
   <div class="modal-backdrop" id="conflictModal">
     <div class="modal">
       <h2><i class="fas fa-exclamation-triangle"></i> 检测到数据冲突</h2>
       <p>其他人也修改了这份座位表，您需要选择如何处理：</p>
       
-      <div id="conflictDetails">
-        <!-- 冲突详情将在这里动态生成 -->
-      </div>
+      <div id="conflictDetails"></div>
       
       <div class="modal-buttons">
         <button class="btn ghost" id="keepMineBtn">保留我的更改</button>
@@ -667,12 +599,10 @@
   </div>
 
   <aside class="sidebar">
-    <!-- 宾客管理区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-users"></i> 宾客管理</h1>
       <input id="search" class="search" type="text" placeholder="搜索姓名…" />
       
-      <!-- 宾客分类筛选 - 增强版 -->
       <div class="category-selector" id="categoryFilter">
         <div class="category-btn active" data-category="all">全部</div>
         <div class="category-btn family" data-category="family">家人</div>
@@ -681,7 +611,6 @@
         <div class="category-btn other" data-category="other">其他</div>
       </div>
       
-      <!-- 筛选结果提示 -->
       <div class="filter-result" id="filterResult">
         <span>显示全部未入座宾客</span>
         <span id="filterCount">0人</span>
@@ -689,7 +618,6 @@
       
       <textarea id="bulkNames" rows="4" placeholder="批量粘贴姓名：每行一个；可带人数，如“张三 2”表示张三一行共2人；可带备注，如“李四 4（同事）”"></textarea>
       
-      <!-- 宾客分类选择 -->
       <div>
         <label style="font-size:12px; color:var(--muted); margin-bottom:4px; display:block;">添加为：</label>
         <select id="guestCategory" style="width:100%; padding:8px; border-radius:8px; background:#0f1330; border:1px solid var(--border); color:var(--text);">
@@ -710,7 +638,6 @@
       </div>
     </div>
     
-    <!-- 桌位管理区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-utensils"></i> 桌位管理</h1>
       <div class="row">
@@ -730,7 +657,6 @@
         </button>
       </div>
       
-      <!-- 自动排座高级选项 -->
       <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.1); border-radius:8px;">
         <label style="font-size:12px; color:var(--muted); display:block; margin-bottom:4px;">自动排座选项：</label>
         <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
@@ -744,7 +670,6 @@
       </div>
     </div>
     
-    <!-- 批量操作区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-layer-group"></i> 批量操作</h1>
       <div class="row">
@@ -757,7 +682,6 @@
       </div>
     </div>
     
-    <!-- 数据管理区域 -->
     <div class="sidebar-section">
       <h1><i class="fas fa-database"></i> 数据管理</h1>
       <div class="row">
@@ -786,8 +710,17 @@
         </button>
       </div>
     </div>
-	
-    <!-- 未入座宾客列表区域 - 占据剩余空间 -->
+    
+    <div class="sidebar-section">
+      <h1><i class="fas fa-chart-pie"></i> 统计分析</h1>
+      <div class="stats-chart-container">
+        <canvas id="seatingChart"></canvas>
+      </div>
+      <div style="font-size:12px; color:var(--muted); text-align:center; margin-top:4px;">
+        宾客分类与入座情况
+      </div>
+    </div>
+
     <div class="sidebar-section guest-list-container">
       <h1><i class="fas fa-list"></i> 未入座宾客</h1>
       <div id="guestList" class="guest-list" aria-label="未入座列表"></div>
@@ -797,6 +730,7 @@
   <main class="main">
     <div class="toolbar">
       <div class="pill highlight">实时协作：把下面的分享链接发给同事/亲友，大家看到的是同一份座位表。</div>
+      <div class="stats" id="stats"></div>
     </div>
 
     <div class="toolbar" style="gap:10px">
@@ -816,7 +750,6 @@
     <div id="canvas" class="canvas" aria-label="桌面画布"></div>
   </main>
 
-  <!-- 引入外部JavaScript -->
-  <script src="Seating-Plan.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
