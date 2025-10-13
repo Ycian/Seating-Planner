@@ -1374,49 +1374,68 @@ document.addEventListener('DOMContentLoaded', async () => {
               data.tables && Array.isArray(data.tables)) {
               
             let guestCount = 0, tableCount = 0;
+            const importPreviewItems = [];
             
             data.guests.forEach(g => {
               guestCount++;
-              const item = document.createElement('div');
-              item.className = 'import-preview-item';
-              item.textContent = `宾客: ${g.name || '未知'} (${g.count || 1}人)`;
-              el.importPreview.appendChild(item);
+              importPreviewItems.push(`宾客: ${g.name || '未知'} (${g.count || 1}人)`);
             });
             
             data.tables.forEach(t => {
               tableCount++;
-              const item = document.createElement('div');
-              item.className = 'import-preview-item';
-              item.textContent = `桌位: ${t.name || '未知'} (容量: ${t.capacity || 10})`;
-              el.importPreview.appendChild(item);
+              importPreviewItems.push(`桌位: ${t.name || '未知'} (容量: ${t.capacity || 10})`);
             });
+            
+            // 渲染预览
+            el.importPreview.innerHTML = importPreviewItems.map(item => 
+              `<div class="import-preview-item">${item}</div>`
+            ).join('');
             
             el.confirmImportBtn.onclick = () => {
               if (confirm(`确定要导入吗？这将替换当前的${state.guests.length}组宾客和${state.tables.length}个桌位。`)) {
-                // 转换为当前格式
-                state.guests = data.guests.map(g => ({
-                  id: uid(),
-                  name: g.name || `宾客${guestCount++}`,
-                  count: g.count || 1,
-                  category: g.category || 'other',
-                  related: g.related || []
-                }));
+                // 生成新的宾客ID映射（保留原始入座关系）
+                const guestIdMap = {};
                 
+                // 导入宾客
+                state.guests = data.guests.map(g => {
+                  const newId = uid();
+                  guestIdMap[g.id] = newId; // 记录原始ID到新ID的映射
+                  return {
+                    id: newId,
+                    name: g.name || `宾客${guestCount++}`,
+                    count: g.count || 1,
+                    category: g.category || 'other',
+                    related: g.related || []
+                  };
+                });
+                
+                // 导入桌位并映射宾客ID
                 state.tables = data.tables.map(t => ({
                   id: uid(),
                   name: t.name || `桌${tableCount++}`,
                   capacity: t.capacity || 10,
-                  guests: [] // 导入时不保留座位安排
+                  guests: t.guests ? t.guests.map(originalId => guestIdMap[originalId] || '') : []
                 }));
+                
+                // 清理无效的宾客引用
+                state.tables.forEach(table => {
+                  table.guests = table.guests.filter(guestId => 
+                    state.guests.some(g => g.id === guestId)
+                  );
+                });
                 
                 clearLocalChanges();
                 localChanges.guests.added.push(...state.guests.map(g => g.id));
                 localChanges.tables.added.push(...state.tables.map(t => t.id));
                 
+                // 强制刷新所有相关UI
                 scheduleSave();
-                render();
-                updateChart();
+                render();          // 刷新主界面
+                updateStats();     // 强制更新统计数据
+                updateChart();     // 更新图表
+                updateBatchTableSelect(); // 更新批量操作的桌位选择器
                 
+                // 清理导入界面
                 el.importPreview.style.display = 'none';
                 el.confirmImportBtn.style.display = 'none';
                 el.importFile.value = '';
@@ -1427,7 +1446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           } else {
             throw new Error('JSON格式不正确，缺少guests或tables数组');
           }
-        } else if (file.name.endsWith('.csv')) {
+        }else if (file.name.endsWith('.csv')) {
           const lines = content.split('\n').filter(line => line.trim() !== '');
           const guests = [];
           
@@ -1584,4 +1603,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   init();
 });
+
 
