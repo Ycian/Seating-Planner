@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     importPreview: qs('#importPreview'),
     confirmImportBtn: qs('#confirmImportBtn'),
     printBtn: qs('#printBtn'),
+    printListBtn: qs('#printListBtn'), // 新增打印名单按钮引用
     resetAllBtn: qs('#resetAllBtn'),
     shareBtn: qs('#shareBtn'), 
     shareTip: qs('#shareTip'), 
@@ -1515,6 +1516,75 @@ document.addEventListener('DOMContentLoaded', async () => {
   el.printBtn.addEventListener('click', () => {
     window.print();
   });
+
+  // 打印宾客名单按钮事件
+el.printListBtn.addEventListener('click', printGuestList);
+
+// 打印宾客名单函数
+function printGuestList() {
+  // 创建临时打印容器
+  const printContainer = document.createElement('div');
+  printContainer.className = 'print-list-container';
+  document.body.appendChild(printContainer);
+
+  // 添加标题
+  const title = document.createElement('h1');
+  title.style.textAlign = 'center';
+  title.style.color = '#000';
+  title.style.marginBottom = '30px';
+  title.textContent = '宾客座位名单';
+  printContainer.appendChild(title);
+
+  // 按桌生成名单
+  state.tables.forEach(table => {
+    const tableSection = document.createElement('div');
+    tableSection.className = 'print-table-section';
+
+    // 桌名（不显示容量）
+    const tableTitle = document.createElement('div');
+    tableTitle.className = 'print-table-title';
+    tableTitle.textContent = `${table.name}`;
+    tableSection.appendChild(tableTitle);
+
+    // 宾客列表
+    const guestList = document.createElement('div');
+    guestList.className = 'print-guest-list';
+    
+    if (table.guests.length === 0) {
+      guestList.textContent = '无宾客';
+    } else {
+      // 查找桌内所有宾客的详细信息
+      const tableGuests = table.guests.map(guestId => 
+        state.guests.find(g => g.id === guestId)
+      ).filter(Boolean);
+      
+      // 格式化显示：2人显示"携伴"，3人及以上显示"全家"，每行一个
+      const guestNames = tableGuests.map(guest => {
+        if (guest.count === 2) {
+          return `${guest.name}携伴`;
+        } else if (guest.count >= 3) {
+          return `${guest.name}全家`;
+        } else {
+          return guest.name; // 1人时只显示姓名
+        }
+      });
+      
+      // 用换行标签分隔
+      guestList.innerHTML = guestNames.join('<br>');
+    }
+    
+    tableSection.appendChild(guestList);
+    printContainer.appendChild(tableSection);
+  });
+
+  // 执行打印
+  window.print();
+
+  // 打印完成后移除临时容器
+  setTimeout(() => {
+    document.body.removeChild(printContainer);
+  }, 100);
+}
   
   el.resetAllBtn.addEventListener('click', () => {
     if (confirm('确定要重置所有数据吗？这将清除当前的所有宾客和桌位信息，恢复为初始状态。')) {
@@ -1603,5 +1673,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   init();
 });
+
 
 
