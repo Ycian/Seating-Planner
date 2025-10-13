@@ -236,6 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       render();
       updateChart();
+      updateStats();
       showToast('计划加载成功');
     } catch (error) {
       console.error('加载计划失败:', error);
@@ -953,8 +954,93 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       el.canvas.appendChild(card);
     }
+     updateStats();
   }
-
+    // 添加统计数据计算函数
+  function calculateStats() {
+    // 计算总宾客数(按实际人数计算)
+    const totalGuestCount = state.guests.reduce((sum, guest) => sum + guest.count, 0);
+    
+    // 计算已入座宾客ID集合
+    const seatedGuestIds = new Set();
+    state.tables.forEach(table => {
+      table.guests.forEach(guestId => seatedGuestIds.add(guestId));
+    });
+    
+    // 计算已入座和未入座宾客数
+    let seatedCount = 0;
+    state.guests.forEach(guest => {
+      if (seatedGuestIds.has(guest.id)) {
+        seatedCount += guest.count;
+      }
+    });
+    const unseatedCount = totalGuestCount - seatedCount;
+    
+    // 按分类统计宾客数
+    const categoryCounts = {
+      family: 0,
+      friend: 0,
+      colleague: 0,
+      other: 0
+    };
+    state.guests.forEach(guest => {
+      if (categoryCounts.hasOwnProperty(guest.category)) {
+        categoryCounts[guest.category] += guest.count;
+      } else {
+        categoryCounts.other += guest.count;
+      }
+    });
+    
+    // 桌位统计
+    const totalTables = state.tables.length;
+    const totalCapacity = state.tables.reduce((sum, table) => sum + table.capacity, 0);
+    const usedCapacity = seatedCount;
+    const emptyCapacity = totalCapacity - usedCapacity;
+    const capacityUsage = totalCapacity > 0 ? Math.round((usedCapacity / totalCapacity) * 100) : 0;
+    
+    return {
+      totalGuestCount,
+      seatedCount,
+      unseatedCount,
+      categoryCounts,
+      totalTables,
+      totalCapacity,
+      usedCapacity,
+      emptyCapacity,
+      capacityUsage
+    };
+  }
+  
+  // 添加更新统计显示的函数
+  function updateStats() {
+    const stats = calculateStats();
+    
+    // 构建统计HTML
+    el.stats.innerHTML = `
+      <div class="pill"><i class="fas fa-users"></i> 总宾客: ${stats.totalGuestCount}</div>
+      <div class="pill"><i class="fas fa-chair"></i> 已入座: ${stats.seatedCount}</div>
+      <div class="pill"><i class="fas fa-user-clock"></i> 未入座: ${stats.unseatedCount}</div>
+      <div class="pill"><i class="fas fa-utensils"></i> 桌位: ${stats.totalTables} (${stats.capacityUsage}% 占用)</div>
+      <div class="pill family"><i class="fas fa-home"></i> 家人: ${stats.categoryCounts.family}</div>
+      <div class="pill friend"><i class="fas fa-handshake"></i> 朋友: ${stats.categoryCounts.friend}</div>
+      <div class="pill colleague"><i class="fas fa-briefcase"></i> 同事: ${stats.categoryCounts.colleague}</div>
+      <div class="pill other"><i class="fas fa-ellipsis-h"></i> 其他: ${stats.categoryCounts.other}</div>
+    `;
+    
+    // 更新未入座筛选计数
+    el.filterCount.textContent = `${stats.unseatedCount}人`;
+  }
+  
+  // 在CSS中添加统计相关样式
+  const style = document.createElement('style');
+  style.textContent = `
+    .pill.family { border-left: 3px solid var(--family); }
+    .pill.friend { border-left: 3px solid var(--friend); }
+    .pill.colleague { border-left: 3px solid var(--colleague); }
+    .pill.other { border-left: 3px solid var(--other); }
+  `;
+  document.head.appendChild(style);
+  
   // 辅助函数和事件监听器
   function shortName(name) {
     return name.length > 4 ? name.substring(0, 4) + '…' : name;
@@ -1498,3 +1584,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   init();
 });
+
