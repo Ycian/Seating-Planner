@@ -719,10 +719,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderVirtualList(pending);
 
     el.canvas.innerHTML = '';
+    // 添加拖动状态变量
+    let isDraggingTable = false;
+    let dragTable = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    
+    // 为canvas添加拖动事件监听
+    el.canvas.addEventListener('mousemove', handleTableDrag);
+    el.canvas.addEventListener('mouseup', stopTableDrag);
+    el.canvas.addEventListener('mouseleave', stopTableDrag);
+    
+    function handleTableDrag(e) {
+      if (!isDraggingTable || !dragTable) return;
+      
+      const rect = el.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left - dragOffsetX;
+      const y = e.clientY - rect.top - dragOffsetY;
+      
+      // 限制在canvas范围内
+      const maxX = rect.width - dragTable.offsetWidth;
+      const maxY = rect.height - dragTable.offsetHeight;
+      
+      dragTable.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+      dragTable.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+      dragTable.style.zIndex = '1000';
+    }
+    
+    function stopTableDrag() {
+      if (isDraggingTable && dragTable) {
+        dragTable.classList.remove('dragging');
+        dragTable.style.zIndex = '';
+      }
+      isDraggingTable = false;
+      dragTable = null;
+    }
+    
     for (const t of state.tables){
       const card = document.createElement('section'); 
       card.className = 'table-card'; 
       card.dataset.tableId = t.id;
+
+       // 添加拖动相关的样式和属性
+      card.style.position = 'relative';
+      card.style.cursor = 'grab';
+      card.style.transition = 'transform 0.2s, box-shadow 0.2s';
       
       const occupiedSeats = getTableOccupiedSeats(t.id);
       const isFull = occupiedSeats >= t.capacity;
@@ -869,6 +912,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
 
+      // 添加桌子拖动事件处理
+      const tableHeader = qs('.table-header', card);
+      tableHeader.addEventListener('mousedown', startTableDrag);
+      
+      function startTableDrag(e) {
+        // 防止在按钮上触发拖动
+        if (e.target.tagName === 'A' || e.target.closest('a')) return;
+        
+        isDraggingTable = true;
+        dragTable = card;
+        
+        const rect = card.getBoundingClientRect();
+        const canvasRect = el.canvas.getBoundingClientRect();
+        
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        dragOffsetX = e.clientX - rect.left;
+        dragOffsetY = e.clientY - rect.top;
+        
+        // 设置为绝对定位以便拖动
+        card.style.position = 'absolute';
+        card.style.left = (rect.left - canvasRect.left) + 'px';
+        card.style.top = (rect.top - canvasRect.top) + 'px';
+        card.style.width = rect.width + 'px';
+        card.style.cursor = 'grabbing';
+        card.classList.add('dragging');
+        
+        e.preventDefault();
+      }
+      
       qs('.rename', card).onclick = () => {
         const name = prompt('桌名：', t.name); 
         if (name && name.trim()) {
@@ -1673,6 +1746,7 @@ function printGuestList() {
   
   init();
 });
+
 
 
 
