@@ -686,349 +686,476 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function render(){
-    if (!planId) return;
-    
-    el.planIdLabel.textContent = planId;
-    el.shareTip.textContent = location.href;
+  if (!planId) return;
+  
+  el.planIdLabel.textContent = planId;
+  el.shareTip.textContent = location.href;
 
-    updateBatchTableSelect();
-    
-    const seatedIds = new Set(state.tables.flatMap(t=>t.guests));
-    const filterText = (el.search.value||'').trim().toLowerCase();
-    const activeCategory = qs('#categoryFilter .category-btn.active').dataset.category;
-    
-    let pending = state.guests
-      .filter(g => !seatedIds.has(g.id))
-      .filter(g => !filterText || g.name.toLowerCase().includes(filterText))
-      .filter(g => activeCategory === 'all' || g.category === activeCategory);
+  updateBatchTableSelect();
+  
+  const seatedIds = new Set(state.tables.flatMap(t=>t.guests));
+  const filterText = (el.search.value||'').trim().toLowerCase();
+  const activeCategory = qs('#categoryFilter .category-btn.active').dataset.category;
+  
+  let pending = state.guests
+    .filter(g => !seatedIds.has(g.id))
+    .filter(g => !filterText || g.name.toLowerCase().includes(filterText))
+    .filter(g => activeCategory === 'all' || g.category === activeCategory);
 
-    const totalPeopleInFilter = pending.reduce((sum, guest) => sum + guest.count, 0);
-    const categoryNames = {
-      family: '家人',
-      friend: '朋友',
-      colleague: '同事',
-      other: '其他',
-      all: '全部'
-    };
-    
-    el.filterResult.querySelector('span:first-child').textContent = 
-      `显示 ${categoryNames[activeCategory]} 未入座宾客` + 
-      (filterText ? `（搜索: ${filterText}）` : '');
-    el.filterCount.textContent = `${pending.length}组 / ${totalPeopleInFilter}人`;
+  const totalPeopleInFilter = pending.reduce((sum, guest) => sum + guest.count, 0);
+  const categoryNames = {
+    family: '家人',
+    friend: '朋友',
+    colleague: '同事',
+    other: '其他',
+    all: '全部'
+  };
+  
+  el.filterResult.querySelector('span:first-child').textContent = 
+    `显示 ${categoryNames[activeCategory]} 未入座宾客` + 
+    (filterText ? `（搜索: ${filterText}）` : '');
+  el.filterCount.textContent = `${pending.length}组 / ${totalPeopleInFilter}人`;
 
-    renderVirtualList(pending);
+  renderVirtualList(pending);
 
-    el.canvas.innerHTML = '';
-    // 添加拖动状态变量
-    let isDraggingTable = false;
-    let dragTable = null;
-    let dragStartX = 0;
-    let dragStartY = 0;
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
+  el.canvas.innerHTML = '';
+  
+  // 只在第一次渲染时绑定全局事件监听器
+  if (!window.tableDragEventsBound) {
+    window.tableDragEventsBound = true;
     
-    // 为canvas添加拖动事件监听
-    el.canvas.addEventListener('mousemove', handleTableDrag);
-    el.canvas.addEventListener('mouseup', stopTableDrag);
-    el.canvas.addEventListener('mouseleave', stopTableDrag);
-    
-    function handleTableDrag(e) {
-      if (!isDraggingTable || !dragTable) return;
-      
-      const rect = el.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left - dragOffsetX;
-      const y = e.clientY - rect.top - dragOffsetY;
-      
-      // 限制在canvas范围内
-      const maxX = rect.width - dragTable.offsetWidth;
-      const maxY = rect.height - dragTable.offsetHeight;
-      
-      dragTable.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-      dragTable.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
-      dragTable.style.zIndex = '1000';
-    }
-    
-    function stopTableDrag() {
-      if (isDraggingTable && dragTable) {
-        dragTable.classList.remove('dragging');
-        dragTable.style.zIndex = '';
+    // 使用事件委托，避免重复绑定
+    el.canvas.addEventListener('mousemove', (e) => {
+      if (window.isDraggingTable && window.dragTableElement) {
+        handleTableDrag(e);
       }
-      isDraggingTable = false;
-      dragTable = null;
+    });
+    
+    el.canvas.addEventListener('mouseup', () => {
+      if (window.isDraggingTable) {
+        stopTableDrag();
+      }
+    });
+    
+    el.canvas.addEventListener('mouseleave', () => {
+      if (window.isDraggingTable) {
+        stopTableDrag();
+      }
+    });
+  }
+  
+  // 重置拖动状态（防止上次渲染的状态影响）
+  window.isDraggingTable = false;
+  window.dragTable = null;
+  window.dragTableElement = null;
+  window.dragStartIndex = -1;
+  window.placeholder = null;
+  
+  function handleTableDrag(e) {
+    if (!window.isDraggingTable || !window.dragTableElement) return;
+    
+    const rect = el.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 更新拖动元素位置
+    window.dragTableElement.style.left = (x - window.dragTableElement.offsetWidth / 2) + 'px';
+    window.dragTableElement.style.top = (y - 20) + 'px';
+    
+    // 计算当前悬停的网格位置
+    const tables = Array.from(el.canvas.children).filter(el => 
+      el !== window.dragTableElement && el !== window.placeholder
+    );
+    
+    let hoverIndex = -1;
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < tables.length; i++) {
+      const tableRect = tables[i].getBoundingClientRect();
+      const tableCenterX = tableRect.left + tableRect.width / 2;
+      const tableCenterY = tableRect.top + tableRect.height / 2;
+      
+      const distance = Math.sqrt(
+        Math.pow(e.clientX - tableCenterX, 2) + 
+        Math.pow(e.clientY - tableCenterY, 2)
+      );
+      
+      if (distance < minDistance && distance < tableRect.width) {
+        minDistance = distance;
+        hoverIndex = i;
+      }
     }
     
-    for (const t of state.tables){
-      const card = document.createElement('section'); 
-      card.className = 'table-card'; 
-      card.dataset.tableId = t.id;
+    // 更新占位符位置
+    if (hoverIndex !== -1 && window.placeholder) {
+      const targetTable = tables[hoverIndex];
+      const targetIndex = Array.from(el.canvas.children).indexOf(targetTable);
+      
+      if (targetIndex !== -1) {
+        // 决定放在目标前面还是后面
+        const targetRect = targetTable.getBoundingClientRect();
+        const shouldInsertBefore = e.clientX < targetRect.left + targetRect.width / 2;
+        
+        if (shouldInsertBefore) {
+          el.canvas.insertBefore(window.placeholder, targetTable);
+        } else {
+          el.canvas.insertBefore(window.placeholder, targetTable.nextSibling);
+        }
+      }
+    } else if (window.placeholder) {
+      // 如果没有悬停在任何桌子上，放在最后
+      el.canvas.appendChild(window.placeholder);
+    }
+    
+    // 更新其他桌子的视觉反馈
+    tables.forEach((table, index) => {
+      if (index === hoverIndex) {
+        table.style.transform = 'scale(0.95)';
+        table.style.opacity = '0.7';
+      } else {
+        table.style.transform = '';
+        table.style.opacity = '';
+      }
+    });
+  }
+  
+  function stopTableDrag() {
+    if (!window.isDraggingTable || !window.dragTable) return;
+    
+    // 计算新的索引位置
+    let newIndex = -1;
+    if (window.placeholder && window.placeholder.parentNode === el.canvas) {
+      const placeholderIndex = Array.from(el.canvas.children).indexOf(window.placeholder);
+      newIndex = placeholderIndex;
+      
+      // 如果占位符在被拖动元素之前，需要调整索引
+      if (newIndex > window.dragStartIndex) {
+        newIndex--;
+      }
+    }
+    
+    // 移除占位符
+    if (window.placeholder && window.placeholder.parentNode) {
+      window.placeholder.parentNode.removeChild(window.placeholder);
+    }
+    
+    // 重置所有桌子的样式
+    const tables = Array.from(el.canvas.children);
+    tables.forEach(table => {
+      table.style.position = '';
+      table.style.left = '';
+      table.style.top = '';
+      table.style.zIndex = '';
+      table.style.transform = '';
+      table.style.opacity = '';
+      table.style.cursor = '';
+      table.style.width = '';
+    });
+    
+    // 更新桌子顺序
+    if (newIndex !== -1 && newIndex !== window.dragStartIndex) {
+      // 从数组中移除拖动的桌子
+      state.tables.splice(window.dragStartIndex, 1);
+      
+      // 插入到新位置
+      state.tables.splice(newIndex, 0, window.dragTable);
+      
+      // 保存更改
+      localChanges.tables.updated.push(window.dragTable.id);
+      scheduleSave();
+      
+      showToast(`已将 ${window.dragTable.name} 移动到新位置`, 'success');
+    }
+    
+    // 重新渲染以确保正确的网格布局
+    render();
+    
+    window.isDraggingTable = false;
+    window.dragTable = null;
+    window.dragTableElement = null;
+    window.placeholder = null;
+  }
+  
+  for (let tableIndex = 0; tableIndex < state.tables.length; tableIndex++) {
+    const t = state.tables[tableIndex];
+    const card = document.createElement('section'); 
+    card.className = 'table-card'; 
+    card.dataset.tableId = t.id;
+    
+    const occupiedSeats = getTableOccupiedSeats(t.id);
+    const isFull = occupiedSeats >= t.capacity;
+    const fullIndicator = isFull ? '<span style="color:var(--warning);margin-left:4px;">(已满)</span>' : '';
+    
+    const tableGuestIds = t.guests;
+    const idCount = {};
+    let hasConflict = false;
+    
+    tableGuestIds.forEach(id => {
+      idCount[id] = (idCount[id] || 0) + 1;
+      if (idCount[id] > 1) hasConflict = true;
+    });
+    
+    tableGuestIds.forEach(id => {
+      if (state.tables.some(otherTable => otherTable.id !== t.id && otherTable.guests.includes(id))) {
+        hasConflict = true;
+      }
+    });
+    
+    if (hasConflict) card.classList.add('has-conflict');
+    
+    card.innerHTML = `
+      <div class="table-header" style="cursor:move;user-select:none;">
+        <span class="badge">🪑 ${escapeHtml(t.name)}${fullIndicator}</span>
+        <span class="capacity">容量 ${t.capacity} | 已占用 ${occupiedSeats}</span>
+      </div>
+      <div class="table-visual"><div class="round-wrap"><div class="round">${escapeHtml(t.name)}</div></div></div>
+      <div class="table-footer">
+        <a class="link rename">重命名</a> ·
+        <a class="link setcap">设置容量</a> ·
+        <a class="link clear">清空</a>
+        <div class="spacer"></div>
+        <a class="link remove-table">删除桌</a>
+      </div>`;
 
-       // 添加拖动相关的样式和属性
-      card.style.position = 'relative';
-      card.style.cursor = 'grab';
-      card.style.transition = 'transform 0.2s, box-shadow 0.2s';
+    const wrap = qs('.round-wrap', card);
+    const seated = t.guests.map(id => state.guests.find(g => g.id === id)).filter(Boolean);
+    const seats = t.capacity, R = 95;
+    
+    const duplicateIds = [];
+    const idCountForConflict = {};
+    
+    tableGuestIds.forEach(id => {
+      idCountForConflict[id] = (idCountForConflict[id] || 0) + 1;
+      if (idCountForConflict[id] > 1) duplicateIds.push(id);
+    });
+    
+    for (let i = 0; i < seats; i++){
+      const angle = (i / seats) * 2 * Math.PI - Math.PI / 2;
+      const x = Math.cos(angle) * R + 110; 
+      const y = Math.sin(angle) * R + 110;
+      
+      const chair = document.createElement('div');
+      chair.className = 'chair';
+      chair.style.left = (x - 32) + 'px'; 
+      chair.style.top = (y - 14) + 'px';
+      
+      let occupiedBy = null;
+      let currentSeat = 0;
+      
+      for (const guest of seated) {
+        if (i >= currentSeat && i < currentSeat + guest.count) {
+          occupiedBy = guest;
+          break;
+        }
+        currentSeat += guest.count;
+      }
+      
+      if (occupiedBy) {
+        const isConflicted = duplicateIds.includes(occupiedBy.id) || 
+          state.tables.some(otherTable => 
+            otherTable.id !== t.id && otherTable.guests.includes(occupiedBy.id)
+          );
+        
+        if (isConflicted) chair.classList.add('conflict');
+        
+        const isFirstSeat = i === currentSeat;
+        chair.innerHTML = isFirstSeat 
+          ? `<span>${escapeHtml(shortName(occupiedBy.name))}</span><span class="count">${occupiedBy.count}</span><span class="kick">×</span>`
+          : `<span>${escapeHtml(shortName(occupiedBy.name))}</span><span class="count">+${i - currentSeat}</span>`;
+        
+        if (isFirstSeat) {
+          const kick = chair.querySelector('.kick');
+          kick.onclick = (ev) => { 
+            ev.stopPropagation(); 
+            t.guests = t.guests.filter(id => id !== occupiedBy.id);
+            localChanges.tables.updated.push(t.id);
+            scheduleSave(); 
+            render();
+            showToast(`已将 ${occupiedBy.name} 一行(${occupiedBy.count}人)从 ${t.name} 移除`);
+          };
+          
+          chair.draggable = true; 
+          chair.dataset.guestId = occupiedBy.id; 
+          chair.dataset.tableId = t.id; 
+          attachGuestDrag(chair);
+        }
+      } else {
+        chair.classList.add('empty'); 
+        chair.textContent = '空位';
+      }
+      
+      wrap.appendChild(chair);
+    }
+
+    wrap.addEventListener('dragover', e => { 
+      e.preventDefault();
+      wrap.style.backgroundColor = 'rgba(255,255,255,0.05)';
+    });
+    
+    wrap.addEventListener('dragleave', () => {
+      wrap.style.backgroundColor = '';
+    });
+    
+    wrap.addEventListener('drop', e => {
+      e.preventDefault();
+      wrap.style.backgroundColor = '';
+      
+      const gid = draggingId || e.dataTransfer.getData('text/plain'); 
+      if (!gid) return;
+      
+      const guest = state.guests.find(g => g.id === gid);
+      if (!guest) return;
+      
+      // 检查是否正在拖动桌子，如果是则忽略宾客拖动
+      if (window.isDraggingTable) return;
       
       const occupiedSeats = getTableOccupiedSeats(t.id);
-      const isFull = occupiedSeats >= t.capacity;
-      const fullIndicator = isFull ? '<span style="color:var(--warning);margin-left:4px;">(已满)</span>' : '';
-      
-      const tableGuestIds = t.guests;
-      const idCount = {};
-      let hasConflict = false;
-      
-      tableGuestIds.forEach(id => {
-        idCount[id] = (idCount[id] || 0) + 1;
-        if (idCount[id] > 1) hasConflict = true;
-      });
-      
-      tableGuestIds.forEach(id => {
-        if (state.tables.some(otherTable => otherTable.id !== t.id && otherTable.guests.includes(id))) {
-          hasConflict = true;
-        }
-      });
-      
-      if (hasConflict) card.classList.add('has-conflict');
-      
-      card.innerHTML = `
-        <div class="table-header">
-          <span class="badge">🪑 ${escapeHtml(t.name)}${fullIndicator}</span>
-          <span class="capacity">容量 ${t.capacity} | 已占用 ${occupiedSeats}</span>
-        </div>
-        <div class="table-visual"><div class="round-wrap"><div class="round">${escapeHtml(t.name)}</div></div></div>
-        <div class="table-footer">
-          <a class="link rename">重命名</a> ·
-          <a class="link setcap">设置容量</a> ·
-          <a class="link clear">清空</a>
-          <div class="spacer"></div>
-          <a class="link remove-table">删除桌</a>
-        </div>`;
-
-      const wrap = qs('.round-wrap', card);
-      const seated = t.guests.map(id => state.guests.find(g => g.id === id)).filter(Boolean);
-      const seats = t.capacity, R = 95;
-      
-      const duplicateIds = [];
-      const idCountForConflict = {};
-      
-      tableGuestIds.forEach(id => {
-        idCountForConflict[id] = (idCountForConflict[id] || 0) + 1;
-        if (idCountForConflict[id] > 1) duplicateIds.push(id);
-      });
-      
-      for (let i = 0; i < seats; i++){
-        const angle = (i / seats) * 2 * Math.PI - Math.PI / 2;
-        const x = Math.cos(angle) * R + 110; 
-        const y = Math.sin(angle) * R + 110;
-        
-        const chair = document.createElement('div');
-        chair.className = 'chair';
-        chair.style.left = (x - 32) + 'px'; 
-        chair.style.top = (y - 14) + 'px';
-        
-        let occupiedBy = null;
-        let currentSeat = 0;
-        
-        for (const guest of seated) {
-          if (i >= currentSeat && i < currentSeat + guest.count) {
-            occupiedBy = guest;
-            break;
-          }
-          currentSeat += guest.count;
-        }
-        
-        if (occupiedBy) {
-          const isConflicted = duplicateIds.includes(occupiedBy.id) || 
-            state.tables.some(otherTable => 
-              otherTable.id !== t.id && otherTable.guests.includes(occupiedBy.id)
-            );
-          
-          if (isConflicted) chair.classList.add('conflict');
-          
-          const isFirstSeat = i === currentSeat;
-          chair.innerHTML = isFirstSeat 
-            ? `<span>${escapeHtml(shortName(occupiedBy.name))}</span><span class="count">${occupiedBy.count}</span><span class="kick">×</span>`
-            : `<span>${escapeHtml(shortName(occupiedBy.name))}</span><span class="count">+${i - currentSeat}</span>`;
-          
-          if (isFirstSeat) {
-            const kick = chair.querySelector('.kick');
-            kick.onclick = (ev) => { 
-              ev.stopPropagation(); 
-              t.guests = t.guests.filter(id => id !== occupiedBy.id);
-              localChanges.tables.updated.push(t.id);
-              scheduleSave(); 
-              render();
-              showToast(`已将 ${occupiedBy.name} 一行(${occupiedBy.count}人)从 ${t.name} 移除`);
-            };
-            
-            chair.draggable = true; 
-            chair.dataset.guestId = occupiedBy.id; 
-            chair.dataset.tableId = t.id; 
-            attachGuestDrag(chair);
-          }
-        } else {
-          chair.classList.add('empty'); 
-          chair.textContent = '空位';
-        }
-        
-        wrap.appendChild(chair);
-      }
-
-      wrap.addEventListener('dragover', e => { 
-        e.preventDefault();
-        wrap.style.backgroundColor = 'rgba(255,255,255,0.05)';
-      });
-      
-      wrap.addEventListener('dragleave', () => {
-        wrap.style.backgroundColor = '';
-      });
-      
-      wrap.addEventListener('drop', e => {
-        e.preventDefault();
-        wrap.style.backgroundColor = '';
-        
-        const gid = draggingId || e.dataTransfer.getData('text/plain'); 
-        if (!gid) return;
-        
-        const guest = state.guests.find(g => g.id === gid);
-        if (!guest) return;
-        
-        const occupiedSeats = getTableOccupiedSeats(t.id);
-        if (occupiedSeats + guest.count > t.capacity) {
-          showToast(`${t.name} 空间不足，无法容纳 ${guest.name} 一行(${guest.count}人)`, 'warning');
-          return;
-        }
-        
-        const fromTable = state.tables.find(tt => tt.guests.includes(gid));
-        if (fromTable && fromTable.id !== t.id) {
-          fromTable.guests = fromTable.guests.filter(id => id !== gid);
-          localChanges.tables.updated.push(fromTable.id);
-        }
-        
-        if (!t.guests.includes(gid)) {
-          t.guests.push(gid);
-          localChanges.tables.updated.push(t.id);
-          scheduleSave(); 
-          render();
-          showToast(`已将 ${guest.name} 一行(${guest.count}人)安排到 ${t.name}`);
-        }
-      });
-
-      // 添加桌子拖动事件处理
-      const tableHeader = qs('.table-header', card);
-      tableHeader.addEventListener('mousedown', startTableDrag);
-      
-      function startTableDrag(e) {
-        // 防止在按钮上触发拖动
-        if (e.target.tagName === 'A' || e.target.closest('a')) return;
-        
-        isDraggingTable = true;
-        dragTable = card;
-        
-        const rect = card.getBoundingClientRect();
-        const canvasRect = el.canvas.getBoundingClientRect();
-        
-        dragStartX = e.clientX;
-        dragStartY = e.clientY;
-        dragOffsetX = e.clientX - rect.left;
-        dragOffsetY = e.clientY - rect.top;
-        
-        // 设置为绝对定位以便拖动
-        card.style.position = 'absolute';
-        card.style.left = (rect.left - canvasRect.left) + 'px';
-        card.style.top = (rect.top - canvasRect.top) + 'px';
-        card.style.width = rect.width + 'px';
-        card.style.cursor = 'grabbing';
-        card.classList.add('dragging');
-        
-        e.preventDefault();
+      if (occupiedSeats + guest.count > t.capacity) {
+        showToast(`${t.name} 空间不足，无法容纳 ${guest.name} 一行(${guest.count}人)`, 'warning');
+        return;
       }
       
-      qs('.rename', card).onclick = () => {
-        const name = prompt('桌名：', t.name); 
-        if (name && name.trim()) {
-          const validation = validateInput.tableName(name);
-          if (!validation.valid) {
-            showToast(validation.message, 'error');
-            return;
-          }
-          
-          t.name = name.trim(); 
-          localChanges.tables.updated.push(t.id);
-          scheduleSave(); 
-          render();
-          showToast(`已重命名为 ${t.name}`);
-        } 
-      };
+      const fromTable = state.tables.find(tt => tt.guests.includes(gid));
+      if (fromTable && fromTable.id !== t.id) {
+        fromTable.guests = fromTable.guests.filter(id => id !== gid);
+        localChanges.tables.updated.push(fromTable.id);
+      }
       
-      qs('.setcap', card).onclick = () => {
-        const cap = prompt('容量（座位数）：', t.capacity); 
-        const n = Number(cap); 
-        
-        const validation = validateInput.capacity(n);
+      if (!t.guests.includes(gid)) {
+        t.guests.push(gid);
+        localChanges.tables.updated.push(t.id);
+        scheduleSave(); 
+        render();
+        showToast(`已将 ${guest.name} 一行(${guest.count}人)安排到 ${t.name}`);
+      }
+    });
+
+    // 添加桌子拖动事件处理
+    const tableHeader = qs('.table-header', card);
+    tableHeader.addEventListener('mousedown', (e) => startTableDrag(e, t, tableIndex, card));
+    
+    function startTableDrag(e, table, index, element) {
+      // 防止在按钮上触发拖动
+      if (e.target.tagName === 'A' || e.target.closest('a')) return;
+      
+      // 防止在宾客拖动过程中触发桌子拖动
+      if (draggingId) return;
+      
+      window.isDraggingTable = true;
+      window.dragTable = table;
+      window.dragTableElement = element;
+      window.dragStartIndex = index;
+      
+      // 创建占位符
+      window.placeholder = document.createElement('div');
+      window.placeholder.className = 'table-card table-placeholder';
+      window.placeholder.style.visibility = 'hidden';
+      window.placeholder.style.height = element.offsetHeight + 'px';
+      
+      // 将占位符插入到被拖动元素的位置
+      el.canvas.insertBefore(window.placeholder, element.nextSibling);
+      
+      // 设置为绝对定位以便拖动
+      element.style.position = 'absolute';
+      element.style.left = (e.clientX - element.offsetWidth / 2) + 'px';
+      element.style.top = (e.clientY - 20) + 'px';
+      element.style.zIndex = '1000';
+      element.style.cursor = 'grabbing';
+      element.style.width = element.offsetWidth + 'px';
+      element.classList.add('dragging');
+      
+      e.preventDefault();
+      e.stopPropagation(); // 防止事件冒泡影响其他功能
+    }
+
+    qs('.rename', card).onclick = () => {
+      const name = prompt('桌名：', t.name); 
+      if (name && name.trim()) {
+        const validation = validateInput.tableName(name);
         if (!validation.valid) {
           showToast(validation.message, 'error');
           return;
         }
         
-        const occupiedSeats = getTableOccupiedSeats(t.id);
-        let removedGuests = [];
-        
-        if (n < occupiedSeats) {
-          let remainingCapacity = n;
-          const newGuests = [];
-          
-          for (const guestId of t.guests) {
-            const guest = state.guests.find(g => g.id === guestId);
-            if (!guest) continue;
-            
-            if (remainingCapacity >= guest.count) {
-              newGuests.push(guestId);
-              remainingCapacity -= guest.count;
-            } else {
-              removedGuests.push(guest);
-            }
-          }
-          
-          t.guests = newGuests;
-        }
-        
-        t.capacity = n; 
+        t.name = name.trim(); 
         localChanges.tables.updated.push(t.id);
         scheduleSave(); 
         render();
+        showToast(`已重命名为 ${t.name}`);
+      } 
+    };
+    
+    qs('.setcap', card).onclick = () => {
+      const cap = prompt('容量（座位数）：', t.capacity); 
+      const n = Number(cap); 
+      
+      const validation = validateInput.capacity(n);
+      if (!validation.valid) {
+        showToast(validation.message, 'error');
+        return;
+      }
+      
+      const occupiedSeats = getTableOccupiedSeats(t.id);
+      let removedGuests = [];
+      
+      if (n < occupiedSeats) {
+        let remainingCapacity = n;
+        const newGuests = [];
         
-        if (removedGuests.length > 0) {
-          showToast(`桌容量调整，${removedGuests.length}组宾客已移除`, 'warning');
-        } else {
-          showToast(`桌容量已更新为 ${t.capacity}`, 'success');
-        }
-      };
-      
-      qs('.clear', card).onclick = () => {
-        if (confirm(`确定要清空 ${t.name} 吗？`)) {
-          t.guests = [];
-          localChanges.tables.updated.push(t.id);
-          scheduleSave(); 
-          render();
-          showToast(`${t.name} 已清空`, 'success');
-        }
-      };
-      
-      qs('.remove-table', card).onclick = () => {
-        if (confirm(`确定要删除 ${t.name} 吗？桌上的宾客将被移回未入座列表。`)) {
-          const index = state.tables.findIndex(tt => tt.id === t.id);
-          if (index !== -1) {
-            state.tables.splice(index, 1);
-            localChanges.tables.removed.push(t.id);
-            scheduleSave(); 
-            render();
-            showToast(`${t.name} 已删除`, 'success');
+        for (const guestId of t.guests) {
+          const guest = state.guests.find(g => g.id === guestId);
+          if (!guest) continue;
+          
+          if (remainingCapacity >= guest.count) {
+            newGuests.push(guestId);
+            remainingCapacity -= guest.count;
+          } else {
+            removedGuests.push(guest);
           }
         }
-      };
+        
+        t.guests = newGuests;
+      }
       
-      el.canvas.appendChild(card);
-    }
-     updateStats();
+      t.capacity = n; 
+      localChanges.tables.updated.push(t.id);
+      scheduleSave(); 
+      render();
+      
+      if (removedGuests.length > 0) {
+        showToast(`桌容量调整，${removedGuests.length}组宾客已移除`, 'warning');
+      } else {
+        showToast(`桌容量已更新为 ${t.capacity}`, 'success');
+      }
+    };
+    
+    qs('.clear', card).onclick = () => {
+      if (confirm(`确定要清空 ${t.name} 吗？`)) {
+        t.guests = [];
+        localChanges.tables.updated.push(t.id);
+        scheduleSave(); 
+        render();
+        showToast(`${t.name} 已清空`, 'success');
+      }
+    };
+    
+    qs('.remove-table', card).onclick = () => {
+      if (confirm(`确定要删除 ${t.name} 吗？桌上的宾客将被移回未入座列表。`)) {
+        const index = state.tables.findIndex(tt => tt.id === t.id);
+        if (index !== -1) {
+          state.tables.splice(index, 1);
+          localChanges.tables.removed.push(t.id);
+          scheduleSave(); 
+          render();
+          showToast(`${t.name} 已删除`, 'success');
+        }
+      }
+    };
+    
+    el.canvas.appendChild(card);
+  }
+  
+  updateStats();
   }
     // 添加统计数据计算函数
   function calculateStats() {
@@ -1746,6 +1873,7 @@ function printGuestList() {
   
   init();
 });
+
 
 
 
