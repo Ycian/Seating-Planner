@@ -28,6 +28,29 @@
     --colleague:#6aa7ff;
     --other:#9f7bff;
   }
+  /* 桌子拖动样式 */
+  .table-card.dragging {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 0 2px var(--accent) !important;
+    z-index: 1000;
+  }
+  
+  .table-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    cursor: grab;
+  }
+  
+  .table-card:active {
+    cursor: grabbing;
+  }
+  
+  /* 确保canvas可以作为拖放容器 */
+  .canvas {
+    position: relative;
+    min-height: 400px;
+  }
+  
   *{box-sizing:border-box} 
   html,body{height:100%}
   body{ 
@@ -239,7 +262,9 @@
     padding:12px; 
     display:grid; 
     grid-template-columns: repeat(var(--cols), minmax(260px,1fr)); 
-    gap:12px 
+    gap:12px;
+    position: relative;
+    min-height: 400px;
   }
   .table-card{ 
     background:var(--card); 
